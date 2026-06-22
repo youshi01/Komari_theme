@@ -45,13 +45,13 @@ export function StatusOverview() {
   }, [nodes]);
 
   return (
-    <section className="status-overview" aria-label="??????">
-      <OverviewItem label="????" value={formatClock(now)} />
-      <OverviewItem label="????" value={String(stats.total)} />
-      <OverviewItem label="????" value={`${stats.online} / ${stats.total}`} />
-      <OverviewItem label="????" value={String(stats.regions)} />
+    <section className="status-overview" aria-label="节点状态总览">
+      <OverviewItem label="当前时间" value={formatClock(now)} />
+      <OverviewItem label="节点总数" value={String(stats.total)} />
+      <OverviewItem label="当前在线" value={`${stats.online} / ${stats.total}`} />
+      <OverviewItem label="点亮地区" value={String(stats.regions)} />
       <OverviewItem
-        label="????"
+        label="流量概览"
         value={
           <span className="status-overview-flow">
             <span><ArrowUp size={14} />{formatBytes(stats.trafficUp)}</span>
@@ -60,7 +60,7 @@ export function StatusOverview() {
         }
       />
       <OverviewItem
-        label="?????"
+        label="总流量速率"
         value={
           <span className="status-overview-flow">
             <span><ArrowUp size={14} />{formatTrafficRateLabel(stats.rateUp)}</span>

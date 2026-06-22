@@ -1478,7 +1478,7 @@
     background-position 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-/* Internal hairline dividers ? solid #212121 in dark, #e4e4e7 in light */
+/* Internal hairline dividers — solid #212121 in dark, #e4e4e7 in light */
 .card-metric-section + .card-metric-section.card-metric-divided {
   padding-top: 12px;
   border-top: 1px solid var(--hairline);
@@ -1683,7 +1683,7 @@
   gap: 18px;
 }
 
-/* Tags row ? no top border; pills sit flush after footer meta row */
+/* Tags row — no top border; pills sit flush after footer meta row */
 .dstatus-tags-row {
   display: flex;
   align-items: center;

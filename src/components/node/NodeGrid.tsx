@@ -10,8 +10,8 @@ export function NodeGrid() {
   if (uuids.length === 0) {
     return (
       <div className="flex h-[40vh] flex-col items-center justify-center gap-2 text-[var(--text-tertiary)]">
-        <span className="text-[15px]">?????????</span>
-        <span className="text-[12px]">???????????????</span>
+        <span className="text-[15px]">尚未连接到任何节点</span>
+        <span className="text-[12px]">等待后端推送或前往管理后台添加</span>
       </div>
     );
   }

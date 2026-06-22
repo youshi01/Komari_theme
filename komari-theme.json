@@ -10,7 +10,7 @@
     "type": "redirect",
     "icon": "SlidersHorizontal",
     "name": {
-      "zh-CN": "YS ????",
+      "zh-CN": "YS 主题设置",
       "en": "YS Theme Settings"
     },
     "data": "?view=theme-manage"
