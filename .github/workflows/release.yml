@@ -1,0 +1,88 @@
+name: Release Theme
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read release metadata
+        id: meta
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE_VERSION=$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version)")
+          THEME_VERSION=$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('komari-theme.json', 'utf8')).version)")
+          THEME_SHORT=$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('komari-theme.json', 'utf8')).short)")
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ]; then
+            echo "Tag version ${TAG_VERSION} does not match package.json version ${PACKAGE_VERSION}"
+            exit 1
+          fi
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${TAG_VERSION}" != "${THEME_VERSION}" ]; then
+            echo "Tag version ${TAG_VERSION} does not match komari-theme.json version ${THEME_VERSION}"
+            exit 1
+          fi
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            RELEASE_VERSION="${TAG_VERSION}"
+          else
+            RELEASE_VERSION="${THEME_VERSION}"
+          fi
+
+          echo "version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "zip_name=${THEME_SHORT}-v${RELEASE_VERSION}.zip" >> "${GITHUB_OUTPUT}"
+
+      - name: Build theme
+        run: npm run build
+
+      - name: Create theme package
+        run: npm run package
+
+      - name: Verify package contents
+        run: |
+          test -f preview.png
+          test -f komari-theme.json
+          test -f "${{ steps.meta.outputs.zip_name }}"
+
+      - name: Upload build artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.zip_name }}
+          path: ${{ steps.meta.outputs.zip_name }}
+          retention-days: 30
+
+      - name: Create GitHub release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: komari-theme-YS v${{ steps.meta.outputs.version }}
+          body: |
+            komari-theme-YS theme release v${{ steps.meta.outputs.version }}.
+
+            Asset:
+            - `${{ steps.meta.outputs.zip_name }}`
+          files: ${{ steps.meta.outputs.zip_name }}
