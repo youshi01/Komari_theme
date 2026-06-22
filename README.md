@@ -8,7 +8,7 @@ komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komar
 
 白日模式首页截图：
 
-[[![nL9GD3QcqtLla7kWrqaAXj8Xfg0f9pPA.webp](https://cdn.nodeimage.com/i/nL9GD3QcqtLla7kWrqaAXj8Xfg0f9pPA.webp)](https://cdn.nodeimage.com/i/lsH75Tsk8zX9ACedXWo5VciZ0IKAu9Ln.webp)](https://cdn.nodeimage.com/i/wuhwH0FgiURqIDg1ao0mx5mE3P9v52cJ.webp)
+https://cdn.nodeimage.com/i/wuhwH0FgiURqIDg1ao0mx5mE3P9v52cJ.webp
 
 夜间模式首页截图：
 
