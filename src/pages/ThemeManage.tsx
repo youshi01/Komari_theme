@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ChangeEvent,
+} from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -7,11 +15,13 @@ import {
   ArrowUp,
   ChevronsDown,
   ChevronsUp,
+  Grid2X2,
   Image as ImageIcon,
   LayoutTemplate,
   ListOrdered,
   Link2,
   Moon,
+  Palette,
   RefreshCw,
   Save,
   Search,
@@ -36,6 +46,7 @@ import {
 import type {
   AdminClient,
   PingTask,
+  PublicConfig,
   ThemeBackgroundSettings,
   ThemeBackgroundUpload,
   ThemeSettings,
@@ -46,11 +57,19 @@ import {
   BACKGROUND_MAX_UPLOADS,
   BACKGROUND_UPLOAD_ACCEPT,
   DEFAULT_BACKGROUND_SETTINGS,
+  getBackgroundSettingsFingerprint,
   getBackgroundSources,
   normalizeBackgroundSettings,
   parseBackgroundUrls,
-  serializeBackgroundSettings,
 } from "@/utils/backgroundSettings";
+import {
+  DEFAULT_GRADIENT_BACKGROUND_SETTINGS,
+  GRADIENT_BACKGROUND_PRESETS,
+  normalizeGradientBackgroundSettings,
+  presetToGradientSettings,
+  serializeGradientBackgroundSettings,
+  type GradientBackgroundSettings,
+} from "@/hooks/useGradientBackground";
 import {
   normalizeHomepagePingTaskBindings,
   type HomepagePingTaskBindings,
@@ -89,6 +108,10 @@ const BACKGROUND_POSITION_OPTIONS = [
   { value: "right", label: "右侧" },
 ] as const;
 
+const BACKGROUND_OPTIMIZE_MIN_BYTES = 1_200_000;
+const BACKGROUND_OPTIMIZE_MAX_EDGE = 1920;
+const BACKGROUND_OPTIMIZE_QUALITY = 0.86;
+
 function normalizeAppearance(value: unknown): Appearance {
   return value === "light" || value === "dark" || value === "system" ? value : "system";
 }
@@ -113,6 +136,95 @@ function readFileAsDataUrl(file: File) {
     reader.onerror = () => reject(reader.error ?? new Error("无法读取图片文件"));
     reader.readAsDataURL(file);
   });
+}
+
+function estimateDataUrlBytes(dataUrl: string) {
+  const commaIndex = dataUrl.indexOf(",");
+  if (commaIndex < 0) return dataUrl.length;
+  const base64 = dataUrl.slice(commaIndex + 1);
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
+function readBlobAsDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("无法读取压缩后的图片"));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("无法读取压缩后的图片"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadDataUrlImage(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("无法解码背景图片"));
+    image.src = dataUrl;
+  });
+}
+
+async function optimizeBackgroundUpload(upload: ThemeBackgroundUpload) {
+  const estimatedBytes = upload.size || estimateDataUrlBytes(upload.dataUrl);
+  const canOptimize =
+    /^image\/jpe?g$/i.test(upload.mime) &&
+    upload.dataUrl.startsWith("data:image/") &&
+    estimatedBytes >= BACKGROUND_OPTIMIZE_MIN_BYTES;
+  if (!canOptimize) return upload;
+
+  try {
+    const image = await loadDataUrlImage(upload.dataUrl);
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    if (width <= 0 || height <= 0) return upload;
+
+    const scale = Math.min(1, BACKGROUND_OPTIMIZE_MAX_EDGE / Math.max(width, height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) return upload;
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", BACKGROUND_OPTIMIZE_QUALITY),
+    );
+    if (!blob || blob.size >= estimatedBytes * 0.92) return upload;
+
+    return {
+      ...upload,
+      mime: "image/webp",
+      size: blob.size,
+      dataUrl: await readBlobAsDataUrl(blob),
+    };
+  } catch {
+    return upload;
+  }
+}
+
+async function optimizeBackgroundUploads(settings: ThemeBackgroundSettings) {
+  if (settings.source !== "upload" || settings.uploads.length === 0) {
+    return normalizeBackgroundSettings(settings);
+  }
+
+  const uploads: ThemeBackgroundUpload[] = [];
+  let changed = false;
+  for (const upload of settings.uploads) {
+    const optimized = await optimizeBackgroundUpload(upload);
+    if (optimized !== upload) changed = true;
+    uploads.push(optimized);
+  }
+
+  return changed
+    ? normalizeBackgroundSettings({ ...settings, uploads })
+    : normalizeBackgroundSettings(settings);
 }
 
 function serializeBindings(bindings: HomepagePingTaskBindings) {
@@ -202,6 +314,8 @@ export function ThemeManage() {
   const [draftBackground, setDraftBackground] = useState<ThemeBackgroundSettings>(
     DEFAULT_BACKGROUND_SETTINGS,
   );
+  const [draftGradientBackground, setDraftGradientBackground] =
+    useState<GradientBackgroundSettings>(DEFAULT_GRADIENT_BACKGROUND_SETTINGS);
   const [draftBindings, setDraftBindings] = useState<HomepagePingTaskBindings>({});
   const [draftNodeOrder, setDraftNodeOrder] = useState<string[]>([]);
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
@@ -212,6 +326,9 @@ export function ThemeManage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accessRevoked, setAccessRevoked] = useState(false);
+  const deferredTaskSearch = useDeferredValue(taskSearch);
+  const deferredNodeSearch = useDeferredValue(nodeSearch);
+  const deferredOrderSearch = useDeferredValue(orderSearch);
 
   const {
     data: pingTasks,
@@ -242,6 +359,10 @@ export function ThemeManage() {
     () => normalizeBackgroundSettings(config?.theme_settings?.background),
     [config?.theme_settings?.background],
   );
+  const sourceGradientBackground = useMemo(
+    () => normalizeGradientBackgroundSettings(config?.theme_settings?.gradientBackground),
+    [config?.theme_settings?.gradientBackground],
+  );
   const sourceBindings = useMemo(
     () => normalizeHomepagePingTaskBindings(config?.theme_settings?.homepagePingBindings),
     [config?.theme_settings?.homepagePingBindings],
@@ -255,9 +376,17 @@ export function ThemeManage() {
     if (!config) return;
     setDraftAppearance(sourceAppearance);
     setDraftBackground(sourceBackground);
+    setDraftGradientBackground(sourceGradientBackground);
     setDraftBindings(sourceBindings);
     setDraftNodeOrder(sourceNodeOrder);
-  }, [config, sourceAppearance, sourceBackground, sourceBindings, sourceNodeOrder]);
+  }, [
+    config,
+    sourceAppearance,
+    sourceBackground,
+    sourceGradientBackground,
+    sourceBindings,
+    sourceNodeOrder,
+  ]);
 
   const sortedTasks = useMemo(() => sortTasks(pingTasks ?? []), [pingTasks]);
   const sortedClients = useMemo(() => sortClients(adminClients ?? []), [adminClients]);
@@ -281,9 +410,13 @@ export function ThemeManage() {
         .filter((client): client is AdminClient => Boolean(client)),
     [clientsById, effectiveNodeOrder],
   );
+  const orderIndexByUuid = useMemo(
+    () => new Map(effectiveNodeOrder.map((uuid, index) => [uuid, index])),
+    [effectiveNodeOrder],
+  );
 
   const filteredTasks = useMemo(() => {
-    const keyword = taskSearch.trim().toLowerCase();
+    const keyword = deferredTaskSearch.trim().toLowerCase();
     if (!keyword) return sortedTasks;
     return sortedTasks.filter((task) => {
       return (
@@ -293,10 +426,10 @@ export function ThemeManage() {
         task.target.toLowerCase().includes(keyword)
       );
     });
-  }, [sortedTasks, taskSearch]);
+  }, [deferredTaskSearch, sortedTasks]);
 
   const visibleClients = useMemo(() => {
-    const keyword = nodeSearch.trim().toLowerCase();
+    const keyword = deferredNodeSearch.trim().toLowerCase();
     if (!keyword) return sortedClients;
     return sortedClients.filter((client) => {
       const group = String(client.group || "").toLowerCase();
@@ -308,10 +441,10 @@ export function ThemeManage() {
         region.includes(keyword)
       );
     });
-  }, [nodeSearch, sortedClients]);
+  }, [deferredNodeSearch, sortedClients]);
 
   const visibleOrderClients = useMemo(() => {
-    const keyword = orderSearch.trim().toLowerCase();
+    const keyword = deferredOrderSearch.trim().toLowerCase();
     if (!keyword) return orderedClients;
     return orderedClients.filter((client) => {
       const group = String(client.group || "").toLowerCase();
@@ -323,7 +456,7 @@ export function ThemeManage() {
         region.includes(keyword)
       );
     });
-  }, [orderSearch, orderedClients]);
+  }, [deferredOrderSearch, orderedClients]);
 
   const draftBindingsSerialized = useMemo(
     () => serializeBindings(draftBindings),
@@ -346,16 +479,25 @@ export function ThemeManage() {
     return serializeHomepageNodeOrder(order);
   }, [defaultNodeOrder, hasClientList, sourceNodeOrder]);
   const draftBackgroundSerialized = useMemo(
-    () => serializeBackgroundSettings(draftBackground),
+    () => getBackgroundSettingsFingerprint(draftBackground),
     [draftBackground],
   );
   const sourceBackgroundSerialized = useMemo(
-    () => serializeBackgroundSettings(sourceBackground),
+    () => getBackgroundSettingsFingerprint(sourceBackground),
     [sourceBackground],
+  );
+  const draftGradientBackgroundSerialized = useMemo(
+    () => serializeGradientBackgroundSettings(draftGradientBackground),
+    [draftGradientBackground],
+  );
+  const sourceGradientBackgroundSerialized = useMemo(
+    () => serializeGradientBackgroundSettings(sourceGradientBackground),
+    [sourceGradientBackground],
   );
   const isDirty =
     draftAppearance !== sourceAppearance ||
     draftBackgroundSerialized !== sourceBackgroundSerialized ||
+    draftGradientBackgroundSerialized !== sourceGradientBackgroundSerialized ||
     draftNodeOrderSerialized !== sourceNodeOrderSerialized ||
     draftBindingsSerialized !== sourceBindingsSerialized;
 
@@ -371,9 +513,36 @@ export function ThemeManage() {
     () => parseBackgroundUrls(draftBackground.urls).length,
     [draftBackground.urls],
   );
+  const gradientPreviewStyle = useMemo(
+    () =>
+      ({
+        background: `
+          radial-gradient(circle at 16% 18%, color-mix(in srgb, ${draftGradientBackground.colors.accent} 78%, transparent) 0%, transparent ${draftGradientBackground.softness + 28}%),
+          radial-gradient(circle at 82% 12%, color-mix(in srgb, ${draftGradientBackground.colors.secondary} 68%, transparent) 0%, transparent ${draftGradientBackground.softness + 24}%),
+          linear-gradient(${draftGradientBackground.angle}deg, ${draftGradientBackground.colors.primary} 0%, color-mix(in srgb, ${draftGradientBackground.colors.primary} 48%, white 52%) 34%, ${draftGradientBackground.colors.secondary} 68%, ${draftGradientBackground.colors.accent} 100%)
+        `,
+        opacity: draftGradientBackground.enabled
+          ? Math.min(1, draftGradientBackground.opacity / 100)
+          : 0.42,
+      }) satisfies CSSProperties,
+    [draftGradientBackground],
+  );
 
   const updateBackground = (patch: Partial<ThemeBackgroundSettings>) => {
     setDraftBackground((current) => normalizeBackgroundSettings({ ...current, ...patch }));
+    setMessage(null);
+  };
+
+  const updateDraftGradientBackground = (
+    patch:
+      | Partial<GradientBackgroundSettings>
+      | ((current: GradientBackgroundSettings) => GradientBackgroundSettings),
+  ) => {
+    setDraftGradientBackground((current) =>
+      normalizeGradientBackgroundSettings(
+        typeof patch === "function" ? patch(current) : { ...current, ...patch },
+      ),
+    );
     setMessage(null);
   };
 
@@ -415,14 +584,15 @@ export function ThemeManage() {
         );
         continue;
       }
-      uploads.push({
+      const upload: ThemeBackgroundUpload = {
         id: createUploadId(file),
         name: file.name,
         mime: file.type || "image/*",
         size: file.size,
         dataUrl,
         createdAt: Date.now(),
-      });
+      };
+      uploads.push(await optimizeBackgroundUpload(upload));
     }
 
     if (uploads.length > 0) {
@@ -478,6 +648,12 @@ export function ThemeManage() {
     setError(null);
     setMessage(null);
     try {
+      const nextBackground = await optimizeBackgroundUploads(draftBackground);
+      const nextGradientBackground = normalizeGradientBackgroundSettings(draftGradientBackground);
+      const nextBindings = pruneBindings(draftBindings);
+      if (getBackgroundSettingsFingerprint(nextBackground) !== draftBackgroundSerialized) {
+        setDraftBackground(nextBackground);
+      }
       const baseSettings: ThemeSettings & Record<string, unknown> = {
         ...(config.theme_settings ?? {}),
       };
@@ -485,8 +661,9 @@ export function ThemeManage() {
       const nextSettings: ThemeSettings & Record<string, unknown> = {
         ...baseSettings,
         defaultAppearance: draftAppearance,
-        background: normalizeBackgroundSettings(draftBackground),
-        homepagePingBindings: pruneBindings(draftBindings),
+        background: nextBackground,
+        gradientBackground: nextGradientBackground,
+        homepagePingBindings: nextBindings,
       };
       const nextNodeOrder = hasClientList
         ? pruneHomepageNodeOrder(draftNodeOrder, defaultNodeOrder)
@@ -497,7 +674,15 @@ export function ThemeManage() {
         delete nextSettings.homepageNodeOrder;
       }
       await saveThemeSettings(config.theme, nextSettings);
-      await queryClient.invalidateQueries({ queryKey: ["public"] });
+      queryClient.setQueryData<PublicConfig>(["public"], (current) =>
+        current
+          ? {
+              ...current,
+              theme_settings: nextSettings,
+            }
+          : current,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["public"] });
       setMessage("主题设置已保存");
     } catch (saveError) {
       if (
@@ -516,6 +701,7 @@ export function ThemeManage() {
   const handleReset = () => {
     setDraftAppearance(sourceAppearance);
     setDraftBackground(sourceBackground);
+    setDraftGradientBackground(sourceGradientBackground);
     setDraftBindings(sourceBindings);
     setDraftNodeOrder(sourceNodeOrder);
     setMessage(null);
@@ -633,6 +819,268 @@ export function ThemeManage() {
       </InstancePanel>
 
       <InstancePanel
+        title="全站默认渐变背板"
+        description="管理员保存后会作为未设置本机外观用户的默认样式；用户在首页自行调整后，本机设置仍会优先生效。"
+        aside={<Palette size={16} />}
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="surface-inset flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold text-[var(--text-primary)]">
+                  默认启用渐变背板
+                </div>
+                <div className="mt-1 text-[12px] text-[var(--text-tertiary)]">
+                  首页本机面板可临时覆盖，也可恢复全站默认
+                </div>
+              </div>
+              <button
+                type="button"
+                className="instance-toggle-button instance-switch-button gradient-panel-switch"
+                data-active={draftGradientBackground.enabled ? "true" : "false"}
+                onClick={() =>
+                  updateDraftGradientBackground({ enabled: !draftGradientBackground.enabled })
+                }
+                aria-pressed={draftGradientBackground.enabled}
+              >
+                <span className="instance-switch-copy">渐变</span>
+                <span className="instance-switch-track" aria-hidden>
+                  <span className="instance-switch-thumb" />
+                </span>
+                <span className="instance-switch-state">
+                  {draftGradientBackground.enabled ? "开启" : "关闭"}
+                </span>
+              </button>
+            </div>
+
+            <div className="gradient-preset-grid" aria-label="全站渐变预设">
+              {GRADIENT_BACKGROUND_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={clsx(
+                    "gradient-preset-button",
+                    draftGradientBackground.preset === preset.id && "is-active",
+                  )}
+                  onClick={() =>
+                    updateDraftGradientBackground((current) =>
+                      presetToGradientSettings(preset, current),
+                    )
+                  }
+                  title={preset.label}
+                  aria-label={preset.label}
+                >
+                  <span
+                    className="gradient-preset-swatch"
+                    style={{
+                      background: `linear-gradient(${preset.angle}deg, ${preset.colors.primary}, ${preset.colors.secondary} 58%, ${preset.colors.accent})`,
+                    }}
+                    aria-hidden
+                  />
+                  <span>{preset.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="gradient-color-grid">
+              {([
+                ["primary", "主色"],
+                ["secondary", "辅色"],
+                ["accent", "点缀"],
+              ] as const).map(([key, label]) => (
+                <label key={key} className="gradient-color-control">
+                  <span>{label}</span>
+                  <input
+                    type="color"
+                    value={draftGradientBackground.colors[key]}
+                    onChange={(event) =>
+                      updateDraftGradientBackground((current) => ({
+                        ...current,
+                        preset: "custom",
+                        colors: {
+                          ...current.colors,
+                          [key]: event.target.value,
+                        },
+                      }))
+                    }
+                    aria-label={label}
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="gradient-range-control">
+                <span>
+                  <span>角度</span>
+                  <strong>{draftGradientBackground.angle}°</strong>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  value={draftGradientBackground.angle}
+                  onChange={(event) =>
+                    updateDraftGradientBackground({
+                      preset: "custom",
+                      angle: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+
+              <label className="gradient-range-control">
+                <span>
+                  <span>柔和</span>
+                  <strong>{draftGradientBackground.softness}px</strong>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={80}
+                  value={draftGradientBackground.softness}
+                  onChange={(event) =>
+                    updateDraftGradientBackground({
+                      preset: "custom",
+                      softness: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+
+              <label className="gradient-range-control">
+                <span>
+                  <span>透明</span>
+                  <strong>{draftGradientBackground.opacity}%</strong>
+                </span>
+                <input
+                  type="range"
+                  min={10}
+                  max={200}
+                  value={draftGradientBackground.opacity}
+                  onChange={(event) =>
+                    updateDraftGradientBackground({
+                      preset: "custom",
+                      opacity: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+
+              <label className="gradient-range-control">
+                <span>
+                  <span>色块强度</span>
+                  <strong>{draftGradientBackground.surfaceOpacity}%</strong>
+                </span>
+                <input
+                  type="range"
+                  min={35}
+                  max={200}
+                  value={draftGradientBackground.surfaceOpacity}
+                  disabled={!draftGradientBackground.tintSurfaces}
+                  onChange={(event) =>
+                    updateDraftGradientBackground({
+                      surfaceOpacity: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="gradient-surface-sync">
+              <div>
+                <div className="gradient-surface-title">同步卡片色彩</div>
+                <div className="gradient-surface-subtitle">
+                  节点卡片、总览和部分色块跟随渐变
+                </div>
+              </div>
+              <button
+                type="button"
+                className="instance-toggle-button instance-switch-button gradient-panel-switch"
+                data-active={draftGradientBackground.tintSurfaces ? "true" : "false"}
+                onClick={() =>
+                  updateDraftGradientBackground({
+                    tintSurfaces: !draftGradientBackground.tintSurfaces,
+                  })
+                }
+                aria-pressed={draftGradientBackground.tintSurfaces}
+              >
+                <span className="instance-switch-track" aria-hidden>
+                  <span className="instance-switch-thumb" />
+                </span>
+                <span className="instance-switch-state">
+                  {draftGradientBackground.tintSurfaces ? "开启" : "关闭"}
+                </span>
+              </button>
+            </div>
+
+            <div className="gradient-panel-actions flex-wrap">
+              <button
+                type="button"
+                className="theme-manage-button is-compact"
+                onClick={() =>
+                  updateDraftGradientBackground({
+                    preset: "custom",
+                    grid: !draftGradientBackground.grid,
+                  })
+                }
+                data-active={draftGradientBackground.grid ? "true" : "false"}
+              >
+                <Grid2X2 size={13} />
+                <span>{draftGradientBackground.grid ? "网格开" : "网格关"}</span>
+              </button>
+              <button
+                type="button"
+                className="theme-manage-button is-compact"
+                onClick={() => {
+                  setDraftGradientBackground(DEFAULT_GRADIENT_BACKGROUND_SETTINGS);
+                  setMessage(null);
+                }}
+              >
+                <RefreshCw size={13} />
+                <span>恢复主题默认</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="surface-inset flex min-h-[260px] flex-col gap-3 p-3">
+            <div className="flex items-center justify-between gap-3 text-[12px] font-semibold text-[var(--text-secondary)]">
+              <span>全站默认预览</span>
+              <span>{draftGradientBackground.enabled ? "启用" : "关闭"}</span>
+            </div>
+            <div className="relative flex min-h-[220px] overflow-hidden rounded-[12px] border border-[var(--hairline)] bg-[var(--surface)]">
+              <div className="absolute inset-0" style={gradientPreviewStyle} />
+              {draftGradientBackground.grid && (
+                <div
+                  className="absolute inset-0 opacity-40"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(rgba(255,255,255,0.42) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.34) 1px, transparent 1px)",
+                    backgroundSize: "22px 22px",
+                  }}
+                  aria-hidden
+                />
+              )}
+              <div className="relative z-10 mt-auto grid w-full gap-2 p-4">
+                <div className="rounded-[12px] border border-white/40 bg-white/40 px-3 py-3 shadow-[0_18px_36px_-28px_rgba(0,0,0,0.55)] backdrop-blur">
+                  <div className="h-2 w-20 rounded-full bg-white/70" />
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="h-9 rounded-[8px] bg-white/50" />
+                    <div className="h-9 rounded-[8px] bg-white/30" />
+                    <div className="h-9 rounded-[8px] bg-white/50" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-16 rounded-[12px] border border-white/40 bg-white/30 backdrop-blur" />
+                  <div className="h-16 rounded-[12px] border border-white/40 bg-white/30 backdrop-blur" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </InstancePanel>
+
+      <InstancePanel
         title="首页服务器排序"
         description="自定义首页服务器卡片的显示顺序；新增或未排序的服务器会继续按后台权重顺序追加。"
         aside={
@@ -688,7 +1136,7 @@ export function ThemeManage() {
           {!clientsLoading && !noClientsYet && !noFilteredOrderMatch && (
             <div className="grid gap-2">
               {visibleOrderClients.map((client) => {
-                const orderIndex = effectiveNodeOrder.indexOf(client.uuid);
+                const orderIndex = orderIndexByUuid.get(client.uuid) ?? -1;
                 const isFirst = orderIndex <= 0;
                 const isLast = orderIndex >= effectiveNodeOrder.length - 1;
                 const subtitle = [client.group, client.region, client.uuid]
@@ -865,6 +1313,8 @@ export function ThemeManage() {
                             src={upload.dataUrl}
                             alt=""
                             className="h-full w-full object-cover"
+                            loading="lazy"
+                            decoding="async"
                             draggable={false}
                           />
                         </div>
@@ -1045,6 +1495,8 @@ export function ThemeManage() {
                     src={backgroundSources[0].url}
                     alt=""
                     className="h-full w-full"
+                    loading="lazy"
+                    decoding="async"
                     draggable={false}
                     style={{
                       objectFit: draftBackground.fit,
@@ -1134,6 +1586,8 @@ export function ThemeManage() {
             filteredTasks.map((task) => {
               const assigned = draftBindings[String(task.id)] ?? [];
               const isExpanded = expandedTaskId === task.id;
+              const assignedSet = isExpanded ? new Set(assigned) : null;
+              const assignedSummary = summarizeNodes(assigned, clientsById);
               return (
                 <section key={task.id} className="surface-inset px-4 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1161,9 +1615,9 @@ export function ThemeManage() {
                       </div>
                       <p
                         className="mt-2 text-[12px] text-[var(--text-tertiary)]"
-                        title={summarizeNodes(assigned, clientsById)}
+                        title={assignedSummary}
                       >
-                        {summarizeNodes(assigned, clientsById)}
+                        {assignedSummary}
                       </p>
                     </div>
 
@@ -1210,7 +1664,7 @@ export function ThemeManage() {
 
                       <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                         {visibleClients.map((client) => {
-                          const checked = assigned.includes(client.uuid);
+                          const checked = assignedSet?.has(client.uuid) ?? false;
                           const subtitle = [client.group, client.uuid].filter(Boolean).join(" · ");
                           return (
                             <label

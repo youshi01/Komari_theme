@@ -188,6 +188,7 @@ export interface ThemeSettings {
   offlineNodesBehind?: boolean;
   homepagePingBindings?: Record<string, string[]>;
   homepageNodeOrder?: string[];
+  gradientBackground?: unknown;
   siteTitle?: string;
   background?: ThemeBackgroundSettings;
 }

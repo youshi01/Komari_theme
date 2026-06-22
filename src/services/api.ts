@@ -41,6 +41,7 @@ const LOAD_RECORDS_PER_HOUR = 12;
 const MAX_RPC_RECORDS = 20_000;
 const OVERVIEW_PING_MAX_COUNT = 4_000;
 const PING_DETAIL_RPC_TIMEOUT_MS = 60_000;
+const ASYNC_JSON_STRINGIFY_THRESHOLD = 512 * 1024;
 
 interface RpcRecordsPayload {
   count?: number;
@@ -69,6 +70,80 @@ export class ApiRequestError extends Error {
     super(message);
     this.name = "ApiRequestError";
   }
+}
+
+function estimateJsonPayloadSize(value: unknown, seen = new Set<object>()): number {
+  if (value == null) return 4;
+  if (typeof value === "string") return value.length + 2;
+  if (typeof value === "number" || typeof value === "boolean") return 8;
+  if (typeof value !== "object") return 0;
+  if (seen.has(value)) return 0;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.reduce((total, item) => total + estimateJsonPayloadSize(item, seen) + 1, 2);
+  }
+
+  return Object.entries(value as Record<string, unknown>).reduce(
+    (total, [key, item]) => total + key.length + estimateJsonPayloadSize(item, seen) + 4,
+    2,
+  );
+}
+
+function stringifyJsonInWorker(value: unknown): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const workerSource = `
+      self.onmessage = function(event) {
+        try {
+          self.postMessage({ ok: true, value: JSON.stringify(event.data) });
+        } catch (error) {
+          self.postMessage({
+            ok: false,
+            message: error && error.message ? error.message : "JSON stringify failed"
+          });
+        }
+      };
+    `;
+    const workerUrl = URL.createObjectURL(
+      new Blob([workerSource], { type: "text/javascript" }),
+    );
+    const worker = new Worker(workerUrl);
+    const cleanup = () => {
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+    };
+
+    worker.onmessage = (event: MessageEvent<{ ok: boolean; value?: string; message?: string }>) => {
+      cleanup();
+      if (event.data.ok && typeof event.data.value === "string") {
+        resolve(event.data.value);
+        return;
+      }
+      reject(new Error(event.data.message || "JSON stringify failed"));
+    };
+    worker.onerror = (event) => {
+      cleanup();
+      reject(new Error(event.message || "JSON stringify failed"));
+    };
+    worker.postMessage(value);
+  });
+}
+
+async function stringifyJsonBody(value: unknown) {
+  if (
+    typeof Worker !== "undefined" &&
+    typeof Blob !== "undefined" &&
+    typeof URL !== "undefined" &&
+    estimateJsonPayloadSize(value) >= ASYNC_JSON_STRINGIFY_THRESHOLD
+  ) {
+    try {
+      return await stringifyJsonInWorker(value);
+    } catch {
+      // Fall back to the main thread if workers are blocked by browser policy.
+    }
+  }
+
+  return JSON.stringify(value);
 }
 
 function normalizeRpcLatestStatus(
@@ -316,6 +391,7 @@ export async function saveThemeSettings(
   theme: string,
   settings: Record<string, unknown>,
 ): Promise<void> {
+  const body = await stringifyJsonBody(settings);
   const resp = await fetch(`/api/admin/theme/settings?theme=${encodeURIComponent(theme)}`, {
     method: "POST",
     credentials: "include",
@@ -323,7 +399,7 @@ export async function saveThemeSettings(
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(settings),
+    body,
   });
 
   if (!resp.ok) {

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useVisibleNodeUuids } from "@/hooks/useNode";
 import { useHomepagePingOverview } from "@/hooks/usePingMini";
 import { usePublicConfig } from "@/hooks/usePublicConfig";
@@ -8,9 +9,9 @@ import { StatusOverview } from "./StatusOverview";
 export function NodeGrid() {
   const baseUuids = useVisibleNodeUuids();
   const { data: config } = usePublicConfig();
-  const uuids = applyHomepageNodeOrder(
-    baseUuids,
-    config?.theme_settings?.homepageNodeOrder,
+  const uuids = useMemo(
+    () => applyHomepageNodeOrder(baseUuids, config?.theme_settings?.homepageNodeOrder),
+    [baseUuids, config?.theme_settings?.homepageNodeOrder],
   );
   useHomepagePingOverview();
 

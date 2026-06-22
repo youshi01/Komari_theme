@@ -133,3 +133,24 @@ export function serializeBackgroundSettings(settings: ThemeBackgroundSettings) {
     })),
   });
 }
+
+export function getBackgroundSettingsFingerprint(settings: ThemeBackgroundSettings) {
+  const normalized = normalizeBackgroundSettings(settings);
+  return JSON.stringify({
+    ...normalized,
+    urls: normalized.urls
+      .split(/\r?\n/)
+      .map((url) => url.trim())
+      .join("\n"),
+    uploads: normalized.uploads.map((upload) => ({
+      id: upload.id,
+      name: upload.name,
+      mime: upload.mime,
+      size: upload.size,
+      createdAt: Math.round(upload.createdAt || 0),
+      dataUrlLength: upload.dataUrl.length,
+      dataUrlHead: upload.dataUrl.slice(0, 96),
+      dataUrlTail: upload.dataUrl.slice(-48),
+    })),
+  });
+}

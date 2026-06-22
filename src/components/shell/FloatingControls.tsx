@@ -59,8 +59,10 @@ export function FloatingControls() {
     useBackgroundBoardToggle();
   const {
     gradientBackground,
+    gradientBackgroundSourceLabel,
+    hasLocalGradientBackground,
     updateGradientBackground,
-    resetGradientBackground,
+    clearLocalGradientBackground,
   } = useGradientBackground();
   const { data: me } = useAuth();
   const { data: config } = usePublicConfig();
@@ -215,7 +217,7 @@ export function FloatingControls() {
               <div>
                 <div className="gradient-quick-title">渐变背板</div>
                 <div className="gradient-quick-subtitle">
-                  {gradientBackground.enabled ? "已启用" : "已关闭"}
+                  {gradientBackground.enabled ? "已启用" : "已关闭"} · {gradientBackgroundSourceLabel}
                 </div>
               </div>
               <button
@@ -409,9 +411,11 @@ export function FloatingControls() {
               <button
                 type="button"
                 className="theme-manage-button is-compact"
-                onClick={resetGradientBackground}
+                onClick={clearLocalGradientBackground}
+                disabled={!hasLocalGradientBackground}
+                title={hasLocalGradientBackground ? "恢复全站默认" : "当前已经是默认样式"}
               >
-                <span>恢复默认</span>
+                <span>恢复全站默认</span>
               </button>
             </div>
           </div>
