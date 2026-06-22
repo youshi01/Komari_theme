@@ -51,6 +51,18 @@ export function useVisibleNodeUuids(): string[] {
   );
 }
 
+export function useVisibleNodes(): NodeDisplay[] {
+  useEnsured();
+  const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  return useMemo(
+    () =>
+      snap.order
+        .map((uuid) => snap.byUuid[uuid])
+        .filter((node): node is NodeDisplay => Boolean(node) && !node.hidden),
+    [snap],
+  );
+}
+
 export function useNodeStoreStatus() {
   useEnsured();
   const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
