@@ -17,7 +17,9 @@ komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komar
 <img src="https://cdn.nodeimage.com/i/IPPto39Pc50gO56msFfC2wepdQ5XIVYY.webp" alt="IPPto39Pc50gO56msFfC2wepdQ5XIVYY">
 管理面截图：
 
-![UQa2pV5jv1UPlJXLHoPia3QQO7Xn6jAS.webp](https://cdn.nodeimage.com/i/UQa2pV5jv1UPlJXLHoPia3QQO7Xn6jAS.webp)
+<img src="https://cdn.nodeimage.com/i/M14h8OZSdb8CyFmlXNCiR4B7XWR1yF2N.webp" alt="M14h8OZSdb8CyFmlXNCiR4B7XWR1yF2N">
+
+<img src="https://cdn.nodeimage.com/i/90WStM408r5i3Rsh66C7MgqL04HWmoW7.webp" alt="90WStM408r5i3Rsh66C7MgqL04HWmoW7">
 
 ## 特性
 
