@@ -1,6 +1,6 @@
 # komari-theme-YS
 
-komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komari) 的主题，首页强调流畅度与卡片化信息密度，详情页吸收了官方主题、Mochi 与 PurCarte 的一部分交互与展示思路。
+komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komari) 的主题，融合了众多主题的交互与展示思路。
 
 ![komari-theme-YS Preview](./preview-readme.png)
 
@@ -8,7 +8,7 @@ komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komar
 
 白日模式首页截图：
 
-![nL9GD3QcqtLla7kWrqaAXj8Xfg0f9pPA.webp](https://cdn.nodeimage.com/i/nL9GD3QcqtLla7kWrqaAXj8Xfg0f9pPA.webp)
+[![nL9GD3QcqtLla7kWrqaAXj8Xfg0f9pPA.webp](https://cdn.nodeimage.com/i/nL9GD3QcqtLla7kWrqaAXj8Xfg0f9pPA.webp)](https://cdn.nodeimage.com/i/lsH75Tsk8zX9ACedXWo5VciZ0IKAu9Ln.webp)
 
 夜间模式首页截图：
 
