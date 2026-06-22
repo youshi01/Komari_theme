@@ -187,6 +187,7 @@ export interface ThemeSettings {
   showTraffic?: boolean;
   offlineNodesBehind?: boolean;
   homepagePingBindings?: Record<string, string[]>;
+  homepageNodeOrder?: string[];
   siteTitle?: string;
   background?: ThemeBackgroundSettings;
 }

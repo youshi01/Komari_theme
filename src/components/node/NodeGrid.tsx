@@ -1,10 +1,17 @@
 import { useVisibleNodeUuids } from "@/hooks/useNode";
 import { useHomepagePingOverview } from "@/hooks/usePingMini";
+import { usePublicConfig } from "@/hooks/usePublicConfig";
+import { applyHomepageNodeOrder } from "@/utils/nodeOrder";
 import { NodeCard } from "./NodeCard";
 import { StatusOverview } from "./StatusOverview";
 
 export function NodeGrid() {
-  const uuids = useVisibleNodeUuids();
+  const baseUuids = useVisibleNodeUuids();
+  const { data: config } = usePublicConfig();
+  const uuids = applyHomepageNodeOrder(
+    baseUuids,
+    config?.theme_settings?.homepageNodeOrder,
+  );
   useHomepagePingOverview();
 
   if (uuids.length === 0) {

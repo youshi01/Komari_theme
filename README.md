@@ -26,6 +26,7 @@ komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komar
 - 首页为节点卡片与 Ping 任务视图做过一轮数据结构和渲染优化，优先保证大量节点下的流畅度。
 - WebSocket 刷新策略参考官方主题，尽量兼顾实时性与稳定性。
 - 详情页整合了 Mochi 与 PurCarte 的一些优点，偏向高信息密度的状态展示。
+- 支持首页服务器自定义排序，可在主题管理面板中调整卡片顺序，新服务器会自动追加到列表末尾。
 - 支持自定义背景板，可选择图片源或上传本地背景图，支持多图轮换、动态图片、透明度调节、图片置顶显示与快捷启用/关闭。
 - 主题配置不走 `/admin/theme_managed` 的托管配置，而是通过 `?view=theme-manage` 提供前端配置页。
 
@@ -94,4 +95,3 @@ npm run package
 - [Komari API 文档](https://komari-document.pages.dev/dev/api.html)
 - [Komari RPC 文档](https://komari-document.pages.dev/dev/rpc.html)
 - [官方主题 komari-web](https://github.com/komari-monitor/komari-web)
-

@@ -2,9 +2,14 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
+  ChevronsDown,
+  ChevronsUp,
   Image as ImageIcon,
   LayoutTemplate,
+  ListOrdered,
   Link2,
   Moon,
   RefreshCw,
@@ -50,6 +55,12 @@ import {
   normalizeHomepagePingTaskBindings,
   type HomepagePingTaskBindings,
 } from "@/utils/pingTasks";
+import {
+  applyHomepageNodeOrder,
+  normalizeHomepageNodeOrder,
+  pruneHomepageNodeOrder,
+  serializeHomepageNodeOrder,
+} from "@/utils/nodeOrder";
 
 type Appearance = "system" | "light" | "dark";
 
@@ -192,9 +203,11 @@ export function ThemeManage() {
     DEFAULT_BACKGROUND_SETTINGS,
   );
   const [draftBindings, setDraftBindings] = useState<HomepagePingTaskBindings>({});
+  const [draftNodeOrder, setDraftNodeOrder] = useState<string[]>([]);
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
   const [nodeSearch, setNodeSearch] = useState("");
+  const [orderSearch, setOrderSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -233,19 +246,40 @@ export function ThemeManage() {
     () => normalizeHomepagePingTaskBindings(config?.theme_settings?.homepagePingBindings),
     [config?.theme_settings?.homepagePingBindings],
   );
+  const sourceNodeOrder = useMemo(
+    () => normalizeHomepageNodeOrder(config?.theme_settings?.homepageNodeOrder),
+    [config?.theme_settings?.homepageNodeOrder],
+  );
 
   useEffect(() => {
     if (!config) return;
     setDraftAppearance(sourceAppearance);
     setDraftBackground(sourceBackground);
     setDraftBindings(sourceBindings);
-  }, [config, sourceAppearance, sourceBackground, sourceBindings]);
+    setDraftNodeOrder(sourceNodeOrder);
+  }, [config, sourceAppearance, sourceBackground, sourceBindings, sourceNodeOrder]);
 
   const sortedTasks = useMemo(() => sortTasks(pingTasks ?? []), [pingTasks]);
   const sortedClients = useMemo(() => sortClients(adminClients ?? []), [adminClients]);
   const clientsById = useMemo(
     () => new Map(sortedClients.map((client) => [client.uuid, client])),
     [sortedClients],
+  );
+  const defaultNodeOrder = useMemo(
+    () => sortedClients.map((client) => client.uuid),
+    [sortedClients],
+  );
+  const hasClientList = sortedClients.length > 0;
+  const effectiveNodeOrder = useMemo(
+    () => applyHomepageNodeOrder(defaultNodeOrder, draftNodeOrder),
+    [defaultNodeOrder, draftNodeOrder],
+  );
+  const orderedClients = useMemo(
+    () =>
+      effectiveNodeOrder
+        .map((uuid) => clientsById.get(uuid))
+        .filter((client): client is AdminClient => Boolean(client)),
+    [clientsById, effectiveNodeOrder],
   );
 
   const filteredTasks = useMemo(() => {
@@ -276,6 +310,21 @@ export function ThemeManage() {
     });
   }, [nodeSearch, sortedClients]);
 
+  const visibleOrderClients = useMemo(() => {
+    const keyword = orderSearch.trim().toLowerCase();
+    if (!keyword) return orderedClients;
+    return orderedClients.filter((client) => {
+      const group = String(client.group || "").toLowerCase();
+      const region = String(client.region || "").toLowerCase();
+      return (
+        client.name.toLowerCase().includes(keyword) ||
+        client.uuid.toLowerCase().includes(keyword) ||
+        group.includes(keyword) ||
+        region.includes(keyword)
+      );
+    });
+  }, [orderSearch, orderedClients]);
+
   const draftBindingsSerialized = useMemo(
     () => serializeBindings(draftBindings),
     [draftBindings],
@@ -284,6 +333,18 @@ export function ThemeManage() {
     () => serializeBindings(sourceBindings),
     [sourceBindings],
   );
+  const draftNodeOrderSerialized = useMemo(() => {
+    const order = hasClientList
+      ? pruneHomepageNodeOrder(draftNodeOrder, defaultNodeOrder)
+      : draftNodeOrder;
+    return serializeHomepageNodeOrder(order);
+  }, [defaultNodeOrder, draftNodeOrder, hasClientList]);
+  const sourceNodeOrderSerialized = useMemo(() => {
+    const order = hasClientList
+      ? pruneHomepageNodeOrder(sourceNodeOrder, defaultNodeOrder)
+      : sourceNodeOrder;
+    return serializeHomepageNodeOrder(order);
+  }, [defaultNodeOrder, hasClientList, sourceNodeOrder]);
   const draftBackgroundSerialized = useMemo(
     () => serializeBackgroundSettings(draftBackground),
     [draftBackground],
@@ -295,6 +356,7 @@ export function ThemeManage() {
   const isDirty =
     draftAppearance !== sourceAppearance ||
     draftBackgroundSerialized !== sourceBackgroundSerialized ||
+    draftNodeOrderSerialized !== sourceNodeOrderSerialized ||
     draftBindingsSerialized !== sourceBindingsSerialized;
 
   const assignedNodeCount = useMemo(
@@ -389,6 +451,27 @@ export function ThemeManage() {
     setMessage(null);
   };
 
+  const commitNodeOrder = (order: string[]) => {
+    setDraftNodeOrder(pruneHomepageNodeOrder(order, defaultNodeOrder));
+    setMessage(null);
+  };
+
+  const moveNodeOrder = (uuid: string, targetIndex: number) => {
+    const currentIndex = effectiveNodeOrder.indexOf(uuid);
+    if (currentIndex < 0) return;
+
+    const nextOrder = [...effectiveNodeOrder];
+    const [current] = nextOrder.splice(currentIndex, 1);
+    const nextIndex = Math.max(0, Math.min(targetIndex, nextOrder.length));
+    nextOrder.splice(nextIndex, 0, current);
+    commitNodeOrder(nextOrder);
+  };
+
+  const resetNodeOrder = () => {
+    setDraftNodeOrder([]);
+    setMessage(null);
+  };
+
   const handleSave = async () => {
     if (!config?.theme) return;
     setSaving(true);
@@ -405,6 +488,14 @@ export function ThemeManage() {
         background: normalizeBackgroundSettings(draftBackground),
         homepagePingBindings: pruneBindings(draftBindings),
       };
+      const nextNodeOrder = hasClientList
+        ? pruneHomepageNodeOrder(draftNodeOrder, defaultNodeOrder)
+        : normalizeHomepageNodeOrder(draftNodeOrder);
+      if (nextNodeOrder.length > 0) {
+        nextSettings.homepageNodeOrder = nextNodeOrder;
+      } else {
+        delete nextSettings.homepageNodeOrder;
+      }
       await saveThemeSettings(config.theme, nextSettings);
       await queryClient.invalidateQueries({ queryKey: ["public"] });
       setMessage("主题设置已保存");
@@ -426,6 +517,7 @@ export function ThemeManage() {
     setDraftAppearance(sourceAppearance);
     setDraftBackground(sourceBackground);
     setDraftBindings(sourceBindings);
+    setDraftNodeOrder(sourceNodeOrder);
     setMessage(null);
     setError(null);
   };
@@ -457,6 +549,9 @@ export function ThemeManage() {
     (clientsError instanceof Error ? clientsError.message : null);
   const noTasksYet = !tasksLoading && !clientsLoading && sortedTasks.length === 0;
   const noFilteredTaskMatch = !tasksLoading && !clientsLoading && !noTasksYet && filteredTasks.length === 0;
+  const noClientsYet = !clientsLoading && sortedClients.length === 0;
+  const noFilteredOrderMatch =
+    !clientsLoading && !noClientsYet && visibleOrderClients.length === 0;
 
   return (
     <div className="flex flex-col gap-5 py-2">
@@ -534,6 +629,138 @@ export function ThemeManage() {
               <span>{label}</span>
             </button>
           ))}
+        </div>
+      </InstancePanel>
+
+      <InstancePanel
+        title="首页服务器排序"
+        description="自定义首页服务器卡片的显示顺序；新增或未排序的服务器会继续按后台权重顺序追加。"
+        aside={
+          <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+            <ListOrdered size={16} />
+            <span>{clientsLoading ? "载入中" : `${effectiveNodeOrder.length} 台服务器`}</span>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+            <label className="surface-inset flex items-center gap-2 px-3 py-2">
+              <Search size={14} className="text-[var(--text-tertiary)]" />
+              <input
+                value={orderSearch}
+                onChange={(event) => setOrderSearch(event.target.value)}
+                placeholder="搜索服务器名称 / UUID / 分组 / 地区"
+                className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-[var(--text-tertiary)]"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={resetNodeOrder}
+              disabled={draftNodeOrderSerialized === "[]" || saving}
+              className="theme-manage-button"
+            >
+              <RefreshCw size={14} />
+              <span>恢复默认排序</span>
+            </button>
+          </div>
+
+          {clientsLoading && (
+            <div className="flex min-h-[20vh] items-center justify-center">
+              <Spinner size={24} />
+            </div>
+          )}
+
+          {noClientsYet && (
+            <div className="theme-manage-empty-state">
+              <span>当前还没有可排序的服务器。</span>
+              <a href="/admin/client" className="theme-manage-inline-link">
+                前往后台添加服务器
+              </a>
+            </div>
+          )}
+
+          {noFilteredOrderMatch && (
+            <div className="surface-inset px-4 py-5 text-[13px] text-[var(--text-secondary)]">
+              没有匹配的服务器。
+            </div>
+          )}
+
+          {!clientsLoading && !noClientsYet && !noFilteredOrderMatch && (
+            <div className="grid gap-2">
+              {visibleOrderClients.map((client) => {
+                const orderIndex = effectiveNodeOrder.indexOf(client.uuid);
+                const isFirst = orderIndex <= 0;
+                const isLast = orderIndex >= effectiveNodeOrder.length - 1;
+                const subtitle = [client.group, client.region, client.uuid]
+                  .filter(Boolean)
+                  .join(" · ");
+
+                return (
+                  <div
+                    key={client.uuid}
+                    className="surface-inset flex flex-wrap items-center gap-3 px-3 py-3"
+                  >
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[var(--hairline)] bg-[var(--surface)] text-[12px] font-semibold text-[var(--text-tertiary)]">
+                      {orderIndex + 1}
+                    </div>
+                    <div className="min-w-0 flex flex-1 items-center gap-3">
+                      <Flag region={client.region} size={18} />
+                      <div className="min-w-0">
+                        <div className="truncate text-[13px] font-semibold text-[var(--text-primary)]">
+                          {client.name || client.uuid}
+                        </div>
+                        <div className="mt-1 truncate text-[11px] text-[var(--text-tertiary)]">
+                          {subtitle || "未设置分组"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        className="theme-manage-button is-compact"
+                        onClick={() => moveNodeOrder(client.uuid, 0)}
+                        disabled={isFirst}
+                        aria-label={`置顶 ${client.name || client.uuid}`}
+                        title="置顶"
+                      >
+                        <ChevronsUp size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="theme-manage-button is-compact"
+                        onClick={() => moveNodeOrder(client.uuid, orderIndex - 1)}
+                        disabled={isFirst}
+                        aria-label={`上移 ${client.name || client.uuid}`}
+                        title="上移"
+                      >
+                        <ArrowUp size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="theme-manage-button is-compact"
+                        onClick={() => moveNodeOrder(client.uuid, orderIndex + 1)}
+                        disabled={isLast}
+                        aria-label={`下移 ${client.name || client.uuid}`}
+                        title="下移"
+                      >
+                        <ArrowDown size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="theme-manage-button is-compact"
+                        onClick={() => moveNodeOrder(client.uuid, effectiveNodeOrder.length - 1)}
+                        disabled={isLast}
+                        aria-label={`置底 ${client.name || client.uuid}`}
+                        title="置底"
+                      >
+                        <ChevronsDown size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </InstancePanel>
 
