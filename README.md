@@ -94,5 +94,4 @@ npm run package
 - [Komari API 文档](https://komari-document.pages.dev/dev/api.html)
 - [Komari RPC 文档](https://komari-document.pages.dev/dev/rpc.html)
 - [官方主题 komari-web](https://github.com/komari-monitor/komari-web)
-- [Mochi 主题](https://github.com/svnmoe/komari-web-mochi)
-- [PurCarte 主题](https://github.com/Montia37/komari-theme-purcarte)
+
