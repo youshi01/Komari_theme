@@ -9,11 +9,12 @@ komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komar
 白日模式首页截图：
 
 <img src="https://cdn.nodeimage.com/i/wuhwH0FgiURqIDg1ao0mx5mE3P9v52cJ.webp" alt="wuhwH0FgiURqIDg1ao0mx5mE3P9v52cJ.webp">
+<img src="https://cdn.nodeimage.com/i/x8ftY5VfZm5hK7ZgnYYMXltYGKEs3B5R.webp" alt="x8ftY5VfZm5hK7ZgnYYMXltYGKEs3B5R">
 
 夜间模式首页截图：
 
 <img src="https://cdn.nodeimage.com/i/tq7weonNbaXutEGchAmY2zYdF5DuTCkR.webp" alt="tq7weonNbaXutEGchAmY2zYdF5DuTCkR">
-
+<img src="https://cdn.nodeimage.com/i/IPPto39Pc50gO56msFfC2wepdQ5XIVYY.webp" alt="IPPto39Pc50gO56msFfC2wepdQ5XIVYY">
 管理面截图：
 
 ![UQa2pV5jv1UPlJXLHoPia3QQO7Xn6jAS.webp](https://cdn.nodeimage.com/i/UQa2pV5jv1UPlJXLHoPia3QQO7Xn6jAS.webp)
