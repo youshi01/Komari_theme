@@ -27,10 +27,6 @@ import {
   parseTags,
 } from "@/utils/format";
 import { getExpireTextColor } from "@/utils/expireStatus";
-import {
-  latencyHeatColor,
-  lossHeatColor,
-} from "@/utils/metricTone";
 import { Flag } from "@/components/ui/Flag";
 import { MetricBar } from "./MetricBar";
 import { MiniBars } from "./MiniBars";
@@ -80,8 +76,10 @@ function formatLossBucketSummary(bucket: PingOverviewBucket | null) {
 
 export const NodeCard = memo(function NodeCard({
   uuid,
+  visualRedrawKey,
 }: {
   uuid: string;
+  visualRedrawKey: string;
 }) {
   const { resolvedAppearance } = usePreferences();
   const node = useNode(uuid);
@@ -119,16 +117,21 @@ export const NodeCard = memo(function NodeCard({
   const subtitle =
     buildSubtitle([node.group, node.public_remark]) ||
     buildSubtitle([node.os, node.arch, node.virtualization]);
-  const latencyColor = latencyHeatColor(ping.lastValue);
-  const lossColor = lossHeatColor(ping.loss);
+  const metricRedrawKey = `${resolvedAppearance}:${visualRedrawKey}`;
+  const latencyTone = ping.lastValue != null
+    ? "var(--ys-metric-latency, var(--status-online))"
+    : "var(--text-tertiary)";
+  const lossTone = ping.loss != null
+    ? "var(--ys-metric-loss, var(--status-offline))"
+    : "var(--text-tertiary)";
   const latencyHoverColor = hoveredLatencyBucket?.value != null
-    ? latencyHeatColor(hoveredLatencyBucket.value)
+    ? latencyTone
     : "var(--text-tertiary)";
   const loadBaseline = node.cpu_cores > 0 ? node.cpu_cores : 4;
   const loadFraction = Math.max(0, Math.min(1, node.load1 / loadBaseline));
   const upRate = formatTrafficRate(node.netUp);
   const downRate = formatTrafficRate(node.netDown);
-  const lossHoverColor = hoveredLossBucket ? lossHeatColor(hoveredLossBucket.loss) : null;
+  const lossHoverColor = hoveredLossBucket ? lossTone : null;
   const hasHomepagePingBinding = ping.isAssigned;
   const isOnline = node.online === true;
   const isOffline = node.online === false;
@@ -210,8 +213,8 @@ export const NodeCard = memo(function NodeCard({
               unit="%"
               detailText={`${node.cpu_cores || 0} 核`}
               fraction={node.cpuPct / 100}
-              redrawKey={resolvedAppearance}
-              paint={{ kind: "solid", color: "var(--progress-cpu)" }}
+              redrawKey={metricRedrawKey}
+              paint={{ kind: "solid", color: "var(--ys-metric-cpu, var(--progress-cpu))" }}
             />
             <MetricBar
               icon={<MemoryStick size={13} strokeWidth={2} />}
@@ -220,8 +223,8 @@ export const NodeCard = memo(function NodeCard({
               unit="%"
               detailText={`${formatBytes(node.ramUsed)} / ${formatBytes(node.ramTotal)}`}
               fraction={node.ramPct / 100}
-              redrawKey={resolvedAppearance}
-              paint={{ kind: "solid", color: "var(--progress-memory)" }}
+              redrawKey={metricRedrawKey}
+              paint={{ kind: "solid", color: "var(--ys-metric-memory, var(--progress-memory))" }}
             />
             <MetricBar
               icon={<HardDrive size={13} strokeWidth={2} />}
@@ -230,19 +233,19 @@ export const NodeCard = memo(function NodeCard({
               unit="%"
               detailText={`${formatBytes(node.diskUsed)} / ${formatBytes(node.diskTotal)}`}
               fraction={node.diskPct / 100}
-              redrawKey={resolvedAppearance}
-              paint={{ kind: "solid", color: "var(--progress-disk)" }}
+              redrawKey={metricRedrawKey}
+              paint={{ kind: "solid", color: "var(--ys-metric-disk, var(--progress-disk))" }}
             />
             <MetricBar
               icon={<Gauge size={13} strokeWidth={2} />}
               label="负载"
               valueText={node.load1.toFixed(2)}
               fraction={loadFraction}
-              redrawKey={resolvedAppearance}
+              redrawKey={metricRedrawKey}
               paint={{
                 kind: "gradient",
-                from: "var(--progress-cpu)",
-                to: "var(--progress-memory)",
+                from: "var(--ys-metric-load, var(--progress-cpu))",
+                to: "var(--ys-metric-memory, var(--progress-memory))",
               }}
             />
           </div>
@@ -255,8 +258,8 @@ export const NodeCard = memo(function NodeCard({
               total={formatBytes(node.trafficUp)}
               samples={trafficTrend.up}
               live={isOnline}
-              redrawKey={resolvedAppearance}
-              color="var(--progress-cpu)"
+              redrawKey={metricRedrawKey}
+              color="var(--ys-marquee-up, var(--progress-cpu))"
               icon={<ArrowUp size={15} strokeWidth={2.4} />}
             />
             <TrafficStat
@@ -266,8 +269,8 @@ export const NodeCard = memo(function NodeCard({
               total={formatBytes(node.trafficDown)}
               samples={trafficTrend.down}
               live={isOnline}
-              redrawKey={resolvedAppearance}
-              color="var(--status-success)"
+              redrawKey={metricRedrawKey}
+              color="var(--ys-marquee-down, var(--status-success))"
               icon={<ArrowDown size={15} strokeWidth={2.4} />}
             />
           </div>
@@ -279,7 +282,7 @@ export const NodeCard = memo(function NodeCard({
                   <Clock3 size={13} strokeWidth={2} />
                   <span>延迟</span>
                 </div>
-                <span className="server-health-value tabular" style={{ color: latencyColor }}>
+                <span className="server-health-value tabular" style={{ color: latencyTone }}>
                   {ping.lastValue != null ? (
                     <>
                       {Math.round(ping.lastValue)}
@@ -302,7 +305,8 @@ export const NodeCard = memo(function NodeCard({
                     max={ping.max}
                     lastValue={ping.lastValue ?? undefined}
                     buckets={pingBuckets}
-                    redrawKey={resolvedAppearance}
+                    color="var(--ys-metric-latency, var(--status-online))"
+                    redrawKey={metricRedrawKey}
                     onHoverIndex={setHoveredLatencyIndex}
                   />
                 ) : (
@@ -326,7 +330,7 @@ export const NodeCard = memo(function NodeCard({
                   <Unplug size={13} strokeWidth={2} />
                   <span>丢包率</span>
                 </div>
-                <span className="server-health-value tabular" style={{ color: lossColor }}>
+                <span className="server-health-value tabular" style={{ color: lossTone }}>
                   {ping.loss != null ? (
                     <>
                       {ping.loss.toFixed(1)}
@@ -347,7 +351,8 @@ export const NodeCard = memo(function NodeCard({
                   <QualityBars
                     value={ping.loss}
                     buckets={pingBuckets}
-                    redrawKey={resolvedAppearance}
+                    color="var(--ys-metric-loss, var(--status-offline))"
+                    redrawKey={metricRedrawKey}
                     onHoverIndex={setHoveredLossIndex}
                   />
                 ) : (
@@ -357,7 +362,7 @@ export const NodeCard = memo(function NodeCard({
                   <div className="server-health-tooltip">
                     <div className="instance-chart-tooltip-time">{lossHoverTime}</div>
                     <div className="instance-chart-tooltip-row">
-                      <span className="instance-chart-tooltip-dot" style={{ background: lossHoverColor ?? lossColor }} />
+                      <span className="instance-chart-tooltip-dot" style={{ background: lossHoverColor ?? lossTone }} />
                       <span>丢包率</span>
                       <strong>{formatLossBucketSummary(hoveredLossBucket)}</strong>
                     </div>
@@ -488,14 +493,16 @@ function TrafficDotStrip({
         const slotWidth = width / samples.length;
         const styles = getComputedStyle(document.documentElement);
         const baseColor = resolveCssColor(color, styles);
-        const inactiveColor = resolveCssColor("var(--progress-bg)", styles);
+        const peakColor = resolveCssColor("var(--ys-marquee-peak, white)", styles);
+        const inactiveColor = resolveCssColor("var(--ys-marquee-idle, var(--progress-bg))", styles);
 
         samples.forEach((sample, index) => {
           const hasTraffic = sample.value > 0;
           const scale = hasTraffic ? 0.72 + sample.level * 0.82 : 0.46;
           const radius = 2 * scale;
+          const peakShare = Math.round(18 + sample.level * 34);
           const tone = hasTraffic
-            ? `color-mix(in srgb, ${baseColor} ${Math.round(68 + sample.level * 20)}%, white ${Math.round(32 - sample.level * 20)}%)`
+            ? `color-mix(in srgb, ${baseColor} ${100 - peakShare}%, ${peakColor} ${peakShare}%)`
             : inactiveColor;
           const x = index * slotWidth + slotWidth / 2;
           const y = height / 2;

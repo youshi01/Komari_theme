@@ -1,17 +1,92 @@
-import { useMemo } from "react";
-import { useVisibleNodeUuids } from "@/hooks/useNode";
+import { useEffect, useMemo, useState } from "react";
+import { useVisibleNodes } from "@/hooks/useNode";
 import { useHomepagePingOverview } from "@/hooks/usePingMini";
+import { useNodeSort } from "@/hooks/useNodeSort";
 import { usePublicConfig } from "@/hooks/usePublicConfig";
-import { applyHomepageNodeOrder } from "@/utils/nodeOrder";
+import { serializeVisualStyleSettings, useVisualStyle } from "@/hooks/useVisualStyle";
+import { getSnapshot } from "@/services/wsStore";
+import { normalizeHomepageNodeOrder } from "@/utils/nodeOrder";
+import {
+  isRealtimeNodeSortMode,
+  serializeHomepageNodeSortSettings,
+  sortHomepageNodes,
+} from "@/utils/nodeSort";
 import { NodeCard } from "./NodeCard";
 import { StatusOverview } from "./StatusOverview";
 
 export function NodeGrid() {
-  const baseUuids = useVisibleNodeUuids();
+  const nodes = useVisibleNodes();
   const { data: config } = usePublicConfig();
+  const { nodeSort } = useNodeSort();
+  const { visualStyle } = useVisualStyle();
+  const customOrder = useMemo(
+    () => normalizeHomepageNodeOrder(config?.theme_settings?.homepageNodeOrder),
+    [config?.theme_settings?.homepageNodeOrder],
+  );
+  const nodeSortKey = useMemo(
+    () => serializeHomepageNodeSortSettings(nodeSort),
+    [nodeSort],
+  );
+  const visibleNodeKey = useMemo(
+    () => nodes.map((node) => node.uuid).join("|"),
+    [nodes],
+  );
+  const staticUuids = useMemo(
+    () => sortHomepageNodes(nodes, customOrder, nodeSort),
+    [customOrder, nodeSortKey, nodes],
+  );
+  const [realtimeUuids, setRealtimeUuids] = useState<string[]>([]);
+  const useRealtimeSort = isRealtimeNodeSortMode(nodeSort.mode);
+
+  useEffect(() => {
+    if (!useRealtimeSort) {
+      setRealtimeUuids([]);
+      return;
+    }
+
+    const updateRealtimeOrder = () => {
+      const snapshot = getSnapshot();
+      const liveNodes = snapshot.order
+        .map((uuid) => snapshot.byUuid[uuid])
+        .filter((node): node is NonNullable<typeof node> => Boolean(node) && !node.hidden);
+      setRealtimeUuids(sortHomepageNodes(liveNodes, customOrder, nodeSort));
+    };
+
+    updateRealtimeOrder();
+    const timer = window.setInterval(
+      updateRealtimeOrder,
+      nodeSort.realtimeIntervalSeconds * 1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [customOrder, nodeSortKey, useRealtimeSort, visibleNodeKey]);
+
   const uuids = useMemo(
-    () => applyHomepageNodeOrder(baseUuids, config?.theme_settings?.homepageNodeOrder),
-    [baseUuids, config?.theme_settings?.homepageNodeOrder],
+    () => {
+      if (!useRealtimeSort || realtimeUuids.length === 0) return staticUuids;
+
+      const available = new Set(nodes.map((node) => node.uuid));
+      const seen = new Set<string>();
+      const reconciled: string[] = [];
+
+      for (const uuid of realtimeUuids) {
+        if (!available.has(uuid) || seen.has(uuid)) continue;
+        seen.add(uuid);
+        reconciled.push(uuid);
+      }
+
+      for (const uuid of staticUuids) {
+        if (seen.has(uuid)) continue;
+        seen.add(uuid);
+        reconciled.push(uuid);
+      }
+
+      return reconciled;
+    },
+    [nodes, realtimeUuids, staticUuids, useRealtimeSort],
+  );
+  const visualRedrawKey = useMemo(
+    () => serializeVisualStyleSettings(visualStyle),
+    [visualStyle],
   );
   useHomepagePingOverview();
 
@@ -33,7 +108,7 @@ export function NodeGrid() {
       >
         {uuids.map((uuid) => (
           <div key={uuid}>
-            <NodeCard uuid={uuid} />
+            <NodeCard uuid={uuid} visualRedrawKey={visualRedrawKey} />
           </div>
         ))}
       </div>

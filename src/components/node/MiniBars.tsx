@@ -12,6 +12,7 @@ interface MiniBarsProps {
   /** How many bars to render (pads older buckets with empty). */
   count?: number;
   buckets?: PingOverviewBucket[];
+  color?: string;
   redrawKey?: string;
   onHoverIndex?: (index: number | null) => void;
 }
@@ -23,6 +24,7 @@ export function MiniBars({
   lastValue,
   count = 24,
   buckets,
+  color,
   redrawKey,
   onHoverIndex,
 }: MiniBarsProps) {
@@ -34,11 +36,11 @@ export function MiniBars({
             value,
             bucket,
             hasSamples: bucket.total > 0,
-            tone: latencyHeatColor(bucket.value),
+            tone: color ?? latencyHeatColor(bucket.value),
           };
         })
       : (() => {
-          const fallbackTone = latencyHeatColor(lastValue);
+          const fallbackTone = color ?? latencyHeatColor(lastValue);
           const nextBars: Array<{
             value: number;
             bucket: PingOverviewBucket | null;
@@ -73,7 +75,7 @@ export function MiniBars({
                 value,
                 bucket: null,
                 hasSamples: true,
-                tone: latencyHeatColor(value > 0 ? value : lastValue),
+                tone: color ?? latencyHeatColor(value > 0 ? value : lastValue),
               });
             });
             return nextBars;
@@ -92,7 +94,7 @@ export function MiniBars({
               value: avg,
               bucket: null,
               hasSamples: slice.length > 0,
-              tone: latencyHeatColor(avg > 0 ? avg : lastValue),
+              tone: color ?? latencyHeatColor(avg > 0 ? avg : lastValue),
             });
           }
           return nextBars;
@@ -113,7 +115,8 @@ export function MiniBars({
       }}
       onHoverIndex={onHoverIndex}
       draw={(ctx, width, height) => {
-        const inactiveColor = resolveCssColor("var(--progress-bg)");
+        const styles = getComputedStyle(document.documentElement);
+        const inactiveColor = resolveCssColor("var(--progress-bg)", styles);
         const gap = bars.length > 48 ? 1 : 2;
         const barWidth = Math.max(1, (width - gap * (bars.length - 1)) / Math.max(1, bars.length));
 
@@ -124,7 +127,7 @@ export function MiniBars({
           const y = height - barHeight;
 
           ctx.globalAlpha = has ? 0.92 : 0.55;
-          ctx.fillStyle = has ? tone : inactiveColor;
+          ctx.fillStyle = has ? resolveCssColor(tone, styles) : inactiveColor;
           fillRoundedRect(ctx, x, y, barWidth, barHeight, 2);
         });
 

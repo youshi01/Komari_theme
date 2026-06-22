@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type ChangeEvent,
+  type DragEvent,
 } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -15,8 +16,11 @@ import {
   ArrowUp,
   ChevronsDown,
   ChevronsUp,
+  Cpu,
+  GripVertical,
   Grid2X2,
   Image as ImageIcon,
+  Layers,
   LayoutTemplate,
   ListOrdered,
   Link2,
@@ -26,6 +30,7 @@ import {
   Save,
   Search,
   Shuffle,
+  Sparkles,
   Sun,
   SunMoon,
   Trash2,
@@ -71,6 +76,15 @@ import {
   type GradientBackgroundSettings,
 } from "@/hooks/useGradientBackground";
 import {
+  CARD_STYLE_PRESETS,
+  DEFAULT_VISUAL_STYLE_SETTINGS,
+  MARQUEE_PALETTE_PRESETS,
+  VISUAL_COLOR_CONTROLS,
+  normalizeVisualStyleSettings,
+  serializeVisualStyleSettings,
+  type VisualStyleSettings,
+} from "@/hooks/useVisualStyle";
+import {
   normalizeHomepagePingTaskBindings,
   type HomepagePingTaskBindings,
 } from "@/utils/pingTasks";
@@ -80,6 +94,15 @@ import {
   pruneHomepageNodeOrder,
   serializeHomepageNodeOrder,
 } from "@/utils/nodeOrder";
+import {
+  DEFAULT_HOMEPAGE_NODE_SORT,
+  HOMEPAGE_NODE_SORT_OPTIONS,
+  NODE_SORT_INTERVAL_OPTIONS,
+  isRealtimeNodeSortMode,
+  normalizeHomepageNodeSortSettings,
+  serializeHomepageNodeSortSettings,
+  type HomepageNodeSortSettings,
+} from "@/utils/nodeSort";
 
 type Appearance = "system" | "light" | "dark";
 
@@ -316,8 +339,13 @@ export function ThemeManage() {
   );
   const [draftGradientBackground, setDraftGradientBackground] =
     useState<GradientBackgroundSettings>(DEFAULT_GRADIENT_BACKGROUND_SETTINGS);
+  const [draftVisualStyle, setDraftVisualStyle] =
+    useState<VisualStyleSettings>(DEFAULT_VISUAL_STYLE_SETTINGS);
   const [draftBindings, setDraftBindings] = useState<HomepagePingTaskBindings>({});
   const [draftNodeOrder, setDraftNodeOrder] = useState<string[]>([]);
+  const [draftNodeSort, setDraftNodeSort] =
+    useState<HomepageNodeSortSettings>(DEFAULT_HOMEPAGE_NODE_SORT);
+  const [draggingNodeUuid, setDraggingNodeUuid] = useState<string | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
   const [nodeSearch, setNodeSearch] = useState("");
@@ -363,6 +391,10 @@ export function ThemeManage() {
     () => normalizeGradientBackgroundSettings(config?.theme_settings?.gradientBackground),
     [config?.theme_settings?.gradientBackground],
   );
+  const sourceVisualStyle = useMemo(
+    () => normalizeVisualStyleSettings(config?.theme_settings?.visualStyle),
+    [config?.theme_settings?.visualStyle],
+  );
   const sourceBindings = useMemo(
     () => normalizeHomepagePingTaskBindings(config?.theme_settings?.homepagePingBindings),
     [config?.theme_settings?.homepagePingBindings],
@@ -371,21 +403,29 @@ export function ThemeManage() {
     () => normalizeHomepageNodeOrder(config?.theme_settings?.homepageNodeOrder),
     [config?.theme_settings?.homepageNodeOrder],
   );
+  const sourceNodeSort = useMemo(
+    () => normalizeHomepageNodeSortSettings(config?.theme_settings?.homepageNodeSort),
+    [config?.theme_settings?.homepageNodeSort],
+  );
 
   useEffect(() => {
     if (!config) return;
     setDraftAppearance(sourceAppearance);
     setDraftBackground(sourceBackground);
     setDraftGradientBackground(sourceGradientBackground);
+    setDraftVisualStyle(sourceVisualStyle);
     setDraftBindings(sourceBindings);
     setDraftNodeOrder(sourceNodeOrder);
+    setDraftNodeSort(sourceNodeSort);
   }, [
     config,
     sourceAppearance,
     sourceBackground,
     sourceGradientBackground,
+    sourceVisualStyle,
     sourceBindings,
     sourceNodeOrder,
+    sourceNodeSort,
   ]);
 
   const sortedTasks = useMemo(() => sortTasks(pingTasks ?? []), [pingTasks]);
@@ -478,6 +518,14 @@ export function ThemeManage() {
       : sourceNodeOrder;
     return serializeHomepageNodeOrder(order);
   }, [defaultNodeOrder, hasClientList, sourceNodeOrder]);
+  const draftNodeSortSerialized = useMemo(
+    () => serializeHomepageNodeSortSettings(draftNodeSort),
+    [draftNodeSort],
+  );
+  const sourceNodeSortSerialized = useMemo(
+    () => serializeHomepageNodeSortSettings(sourceNodeSort),
+    [sourceNodeSort],
+  );
   const draftBackgroundSerialized = useMemo(
     () => getBackgroundSettingsFingerprint(draftBackground),
     [draftBackground],
@@ -494,11 +542,21 @@ export function ThemeManage() {
     () => serializeGradientBackgroundSettings(sourceGradientBackground),
     [sourceGradientBackground],
   );
+  const draftVisualStyleSerialized = useMemo(
+    () => serializeVisualStyleSettings(draftVisualStyle),
+    [draftVisualStyle],
+  );
+  const sourceVisualStyleSerialized = useMemo(
+    () => serializeVisualStyleSettings(sourceVisualStyle),
+    [sourceVisualStyle],
+  );
   const isDirty =
     draftAppearance !== sourceAppearance ||
     draftBackgroundSerialized !== sourceBackgroundSerialized ||
     draftGradientBackgroundSerialized !== sourceGradientBackgroundSerialized ||
+    draftVisualStyleSerialized !== sourceVisualStyleSerialized ||
     draftNodeOrderSerialized !== sourceNodeOrderSerialized ||
+    draftNodeSortSerialized !== sourceNodeSortSerialized ||
     draftBindingsSerialized !== sourceBindingsSerialized;
 
   const assignedNodeCount = useMemo(
@@ -542,6 +600,18 @@ export function ThemeManage() {
       normalizeGradientBackgroundSettings(
         typeof patch === "function" ? patch(current) : { ...current, ...patch },
       ),
+    );
+    setMessage(null);
+  };
+
+  const updateDraftVisualStyle = (patch: Partial<VisualStyleSettings>) => {
+    setDraftVisualStyle((current) => normalizeVisualStyleSettings({ ...current, ...patch }));
+    setMessage(null);
+  };
+
+  const updateDraftNodeSort = (patch: Partial<HomepageNodeSortSettings>) => {
+    setDraftNodeSort((current) =>
+      normalizeHomepageNodeSortSettings({ ...current, ...patch }),
     );
     setMessage(null);
   };
@@ -637,8 +707,44 @@ export function ThemeManage() {
     commitNodeOrder(nextOrder);
   };
 
+  const moveNodeOrderBefore = (uuid: string, targetUuid: string) => {
+    if (uuid === targetUuid) return;
+    const currentIndex = effectiveNodeOrder.indexOf(uuid);
+    const targetIndex = effectiveNodeOrder.indexOf(targetUuid);
+    if (currentIndex < 0 || targetIndex < 0) return;
+
+    const nextOrder = [...effectiveNodeOrder];
+    const [current] = nextOrder.splice(currentIndex, 1);
+    const nextIndex = currentIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    nextOrder.splice(Math.max(0, nextIndex), 0, current);
+    commitNodeOrder(nextOrder);
+  };
+
+  const handleNodeOrderDragStart = (
+    event: DragEvent<HTMLDivElement>,
+    uuid: string,
+  ) => {
+    setDraggingNodeUuid(uuid);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", uuid);
+  };
+
+  const handleNodeOrderDrop = (
+    event: DragEvent<HTMLDivElement>,
+    targetUuid: string,
+  ) => {
+    event.preventDefault();
+    const sourceUuid =
+      draggingNodeUuid || event.dataTransfer.getData("text/plain");
+    if (sourceUuid) {
+      moveNodeOrderBefore(sourceUuid, targetUuid);
+    }
+    setDraggingNodeUuid(null);
+  };
+
   const resetNodeOrder = () => {
     setDraftNodeOrder([]);
+    setDraggingNodeUuid(null);
     setMessage(null);
   };
 
@@ -650,6 +756,7 @@ export function ThemeManage() {
     try {
       const nextBackground = await optimizeBackgroundUploads(draftBackground);
       const nextGradientBackground = normalizeGradientBackgroundSettings(draftGradientBackground);
+      const nextVisualStyle = normalizeVisualStyleSettings(draftVisualStyle);
       const nextBindings = pruneBindings(draftBindings);
       if (getBackgroundSettingsFingerprint(nextBackground) !== draftBackgroundSerialized) {
         setDraftBackground(nextBackground);
@@ -663,7 +770,9 @@ export function ThemeManage() {
         defaultAppearance: draftAppearance,
         background: nextBackground,
         gradientBackground: nextGradientBackground,
+        visualStyle: nextVisualStyle,
         homepagePingBindings: nextBindings,
+        homepageNodeSort: normalizeHomepageNodeSortSettings(draftNodeSort),
       };
       const nextNodeOrder = hasClientList
         ? pruneHomepageNodeOrder(draftNodeOrder, defaultNodeOrder)
@@ -702,8 +811,11 @@ export function ThemeManage() {
     setDraftAppearance(sourceAppearance);
     setDraftBackground(sourceBackground);
     setDraftGradientBackground(sourceGradientBackground);
+    setDraftVisualStyle(sourceVisualStyle);
     setDraftBindings(sourceBindings);
     setDraftNodeOrder(sourceNodeOrder);
+    setDraftNodeSort(sourceNodeSort);
+    setDraggingNodeUuid(null);
     setMessage(null);
     setError(null);
   };
@@ -815,6 +927,180 @@ export function ThemeManage() {
               <span>{label}</span>
             </button>
           ))}
+        </div>
+      </InstancePanel>
+
+      <InstancePanel
+        title="全站默认卡片样式"
+        description="管理员保存后作为游客和未设置本机样式用户的默认卡片与跑马灯风格；首页快捷面板仍可本机覆盖。"
+        aside={<Layers size={16} />}
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-4">
+            <div className="surface-inset p-4">
+              <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                <Layers size={14} />
+                <span>卡片样式预设</span>
+              </div>
+              <div className="visual-style-preset-list is-grid">
+                {CARD_STYLE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="visual-style-preset"
+                    data-active={draftVisualStyle.cardStyle === preset.id ? "true" : "false"}
+                    onClick={() => updateDraftVisualStyle({ cardStyle: preset.id })}
+                  >
+                    <span className="visual-style-preset-name">{preset.label}</span>
+                    <span className="visual-style-preset-copy">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="surface-inset p-4">
+              <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                <Sparkles size={14} />
+                <span>跑马灯配色预设</span>
+              </div>
+              <div className="visual-style-preset-list is-grid">
+                {MARQUEE_PALETTE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="visual-style-preset"
+                    data-active={
+                      draftVisualStyle.marqueePalette === preset.id ? "true" : "false"
+                    }
+                    onClick={() =>
+                      updateDraftVisualStyle({
+                        marqueePalette: preset.id,
+                        colors: preset.colors,
+                      })
+                    }
+                  >
+                    <span className="visual-style-preset-head">
+                      <span className="visual-style-preset-name">{preset.label}</span>
+                      <span className="marquee-swatch-row" aria-hidden>
+                        {Object.values(preset.colors).slice(0, 6).map((color) => (
+                          <span key={color} style={{ background: color }} />
+                        ))}
+                      </span>
+                    </span>
+                    <span className="visual-style-preset-copy">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="surface-inset p-4">
+              <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                <Palette size={14} />
+                <span>自定义指标颜色</span>
+              </div>
+              <div className="visual-color-grid is-wide">
+                {VISUAL_COLOR_CONTROLS.map(({ key, label }) => (
+                  <label key={key} className="visual-color-control">
+                    <span>{label}</span>
+                    <input
+                      type="color"
+                      value={draftVisualStyle.colors[key]}
+                      onChange={(event) =>
+                        updateDraftVisualStyle({
+                          marqueePalette: "custom",
+                          colors: {
+                            ...draftVisualStyle.colors,
+                            [key]: event.target.value,
+                          },
+                        })
+                      }
+                      aria-label={label}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="gradient-panel-actions flex-wrap">
+              <button
+                type="button"
+                className="theme-manage-button is-compact"
+                onClick={() => {
+                  setDraftVisualStyle(DEFAULT_VISUAL_STYLE_SETTINGS);
+                  setMessage(null);
+                }}
+              >
+                <RefreshCw size={13} />
+                <span>恢复主题默认</span>
+              </button>
+            </div>
+          </div>
+
+          <div
+            className="visual-style-preview surface-inset"
+            data-card-style={draftVisualStyle.cardStyle}
+            style={
+              (() => {
+                return {
+                  "--ys-metric-cpu": draftVisualStyle.colors.cpu,
+                  "--ys-metric-memory": draftVisualStyle.colors.memory,
+                  "--ys-metric-disk": draftVisualStyle.colors.disk,
+                  "--ys-metric-load": draftVisualStyle.colors.load,
+                  "--ys-metric-latency": draftVisualStyle.colors.latency,
+                  "--ys-metric-loss": draftVisualStyle.colors.loss,
+                  "--ys-marquee-up": draftVisualStyle.colors.up,
+                  "--ys-marquee-down": draftVisualStyle.colors.down,
+                  "--ys-marquee-peak": draftVisualStyle.colors.peak,
+                  "--ys-marquee-idle": draftVisualStyle.colors.idle,
+                } as CSSProperties;
+              })()
+            }
+          >
+            <div className="visual-style-preview-head">
+              <span>预览</span>
+              <span>
+                {
+                  CARD_STYLE_PRESETS.find(
+                    (preset) => preset.id === draftVisualStyle.cardStyle,
+                  )?.label
+                }
+              </span>
+            </div>
+            <div className="visual-style-preview-card">
+              <div className="visual-style-preview-title-row">
+                <span className="visual-style-preview-dot" />
+                <span className="visual-style-preview-title">Tokyo-01</span>
+              </div>
+              <div className="visual-style-preview-bars">
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="visual-style-preview-marquee">
+                {Array.from({ length: 18 }).map((_, index) => (
+                  <span
+                    key={index}
+                    style={{
+                      background:
+                        index % 7 === 0
+                          ? "var(--ys-marquee-peak)"
+                          : index % 3 === 0
+                            ? "var(--ys-marquee-down)"
+                            : index % 5 === 0
+                              ? "var(--ys-marquee-idle)"
+                              : "var(--ys-marquee-up)",
+                      opacity: index % 5 === 0 ? 0.48 : 0.92,
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="visual-style-preview-foot">
+                <span>128 MB/s</span>
+                <span>24 ms</span>
+              </div>
+            </div>
+          </div>
         </div>
       </InstancePanel>
 
@@ -1065,9 +1351,9 @@ export function ThemeManage() {
                 <div className="rounded-[12px] border border-white/40 bg-white/40 px-3 py-3 shadow-[0_18px_36px_-28px_rgba(0,0,0,0.55)] backdrop-blur">
                   <div className="h-2 w-20 rounded-full bg-white/70" />
                   <div className="mt-3 grid grid-cols-3 gap-2">
-                    <div className="h-9 rounded-[8px] bg-white/50" />
-                    <div className="h-9 rounded-[8px] bg-white/30" />
-                    <div className="h-9 rounded-[8px] bg-white/50" />
+                    <div className="h-9 rounded-[8px] bg-[var(--ys-metric-cpu)]" />
+                    <div className="h-9 rounded-[8px] bg-[var(--ys-metric-memory)]" />
+                    <div className="h-9 rounded-[8px] bg-[var(--ys-metric-disk)]" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1082,7 +1368,7 @@ export function ThemeManage() {
 
       <InstancePanel
         title="首页服务器排序"
-        description="自定义首页服务器卡片的显示顺序；新增或未排序的服务器会继续按后台权重顺序追加。"
+        description="设置全站默认排序方式；自定义排序支持拖拽，新增或未排序的服务器会继续按后台权重顺序追加。"
         aside={
           <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
             <ListOrdered size={16} />
@@ -1091,6 +1377,65 @@ export function ThemeManage() {
         }
       >
         <div className="flex flex-col gap-4">
+          <div className="surface-inset flex flex-col gap-3 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold text-[var(--text-primary)]">
+                  全站默认排序方式
+                </div>
+                <div className="mt-1 text-[12px] text-[var(--text-tertiary)]">
+                  游客可以在首页临时覆盖；CPU 排序按快照间隔更新位置
+                </div>
+              </div>
+              {isRealtimeNodeSortMode(draftNodeSort.mode) && (
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--progress-cpu)_30%,var(--hairline))] bg-[color-mix(in_srgb,var(--progress-cpu)_8%,var(--surface))] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)]">
+                  <Cpu size={13} />
+                  <span>{draftNodeSort.realtimeIntervalSeconds}s 快照</span>
+                </div>
+              )}
+            </div>
+
+            <div className="instance-segmented is-scrollable">
+              {HOMEPAGE_NODE_SORT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  data-active={draftNodeSort.mode === option.value ? "true" : "false"}
+                  onClick={() => updateDraftNodeSort({ mode: option.value })}
+                  title={option.description}
+                >
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {isRealtimeNodeSortMode(draftNodeSort.mode) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-semibold text-[var(--text-tertiary)]">
+                  快照间隔
+                </span>
+                <div className="instance-segmented is-scrollable">
+                  {NODE_SORT_INTERVAL_OPTIONS.map((seconds) => (
+                    <button
+                      key={seconds}
+                      type="button"
+                      data-active={
+                        draftNodeSort.realtimeIntervalSeconds === seconds
+                          ? "true"
+                          : "false"
+                      }
+                      onClick={() =>
+                        updateDraftNodeSort({ realtimeIntervalSeconds: seconds })
+                      }
+                    >
+                      <span>{seconds}s</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
             <label className="surface-inset flex items-center gap-2 px-3 py-2">
               <Search size={14} className="text-[var(--text-tertiary)]" />
@@ -1146,8 +1491,27 @@ export function ThemeManage() {
                 return (
                   <div
                     key={client.uuid}
-                    className="surface-inset flex flex-wrap items-center gap-3 px-3 py-3"
+                    draggable={!saving}
+                    onDragStart={(event) => handleNodeOrderDragStart(event, client.uuid)}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(event) => handleNodeOrderDrop(event, client.uuid)}
+                    onDragEnd={() => setDraggingNodeUuid(null)}
+                    className={clsx(
+                      "surface-inset flex flex-wrap items-center gap-3 px-3 py-3 transition-opacity",
+                      !saving && "cursor-grab active:cursor-grabbing",
+                      draggingNodeUuid === client.uuid && "opacity-55",
+                    )}
                   >
+                    <div
+                      className="grid h-9 w-7 shrink-0 place-items-center text-[var(--text-tertiary)]"
+                      title="拖拽排序"
+                      aria-hidden
+                    >
+                      <GripVertical size={16} />
+                    </div>
                     <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[var(--hairline)] bg-[var(--surface)] text-[12px] font-semibold text-[var(--text-tertiary)]">
                       {orderIndex + 1}
                     </div>

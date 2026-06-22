@@ -14,12 +14,51 @@ export function resolveCssColor(
   color: string,
   styles = getComputedStyle(document.documentElement),
 ): string {
-  const match = color.match(/^var\((--[^),\s]+)/);
-  if (match) {
-    const resolved = styles.getPropertyValue(match[1]).trim();
-    return resolved || color;
+  let resolvedColor = color;
+
+  for (let guard = 0; guard < 8; guard += 1) {
+    const start = resolvedColor.indexOf("var(");
+    if (start < 0) return resolvedColor;
+
+    let depth = 0;
+    let end = -1;
+    for (let index = start; index < resolvedColor.length; index += 1) {
+      const char = resolvedColor[index];
+      if (char === "(") depth += 1;
+      if (char === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          end = index;
+          break;
+        }
+      }
+    }
+
+    if (end < 0) return resolvedColor;
+
+    const body = resolvedColor.slice(start + 4, end);
+    let commaIndex = -1;
+    depth = 0;
+    for (let index = 0; index < body.length; index += 1) {
+      const char = body[index];
+      if (char === "(") depth += 1;
+      if (char === ")") depth -= 1;
+      if (char === "," && depth === 0) {
+        commaIndex = index;
+        break;
+      }
+    }
+
+    const name = (commaIndex >= 0 ? body.slice(0, commaIndex) : body).trim();
+    const fallback = commaIndex >= 0 ? body.slice(commaIndex + 1).trim() : "";
+    const value = name.startsWith("--") ? styles.getPropertyValue(name).trim() : "";
+    const replacement = value || (fallback ? resolveCssColor(fallback, styles) : "");
+    if (!replacement) return resolvedColor;
+
+    resolvedColor = `${resolvedColor.slice(0, start)}${replacement}${resolvedColor.slice(end + 1)}`;
   }
-  return color;
+
+  return resolvedColor;
 }
 
 export function fillRoundedRect(

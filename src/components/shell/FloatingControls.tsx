@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowUpDown,
+  Cpu,
   ChevronLeft,
   ChevronRight,
   Grid2X2,
   ImageOff,
+  Layers,
   Monitor,
   Moon,
   Palette,
@@ -16,11 +19,23 @@ import {
 import { Link, useSearchParams } from "react-router-dom";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useBackgroundBoardToggle } from "@/hooks/useBackgroundBoardToggle";
+import { useNodeSort } from "@/hooks/useNodeSort";
 import {
   GRADIENT_BACKGROUND_PRESETS,
   presetToGradientSettings,
   useGradientBackground,
 } from "@/hooks/useGradientBackground";
+import {
+  CARD_STYLE_PRESETS,
+  MARQUEE_PALETTE_PRESETS,
+  VISUAL_COLOR_CONTROLS,
+  useVisualStyle,
+} from "@/hooks/useVisualStyle";
+import {
+  HOMEPAGE_NODE_SORT_OPTIONS,
+  NODE_SORT_INTERVAL_OPTIONS,
+  isRealtimeNodeSortMode,
+} from "@/utils/nodeSort";
 import { useNodeStoreStatus } from "@/hooks/useNode";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublicConfig } from "@/hooks/usePublicConfig";
@@ -64,12 +79,28 @@ export function FloatingControls() {
     updateGradientBackground,
     clearLocalGradientBackground,
   } = useGradientBackground();
+  const {
+    visualStyle,
+    visualStyleSourceLabel,
+    hasLocalVisualStyle,
+    updateVisualStyle,
+    clearLocalVisualStyle,
+  } = useVisualStyle();
+  const {
+    nodeSort,
+    nodeSortSourceLabel,
+    hasLocalNodeSort,
+    updateNodeSort,
+    clearLocalNodeSort,
+  } = useNodeSort();
   const { data: me } = useAuth();
   const { data: config } = usePublicConfig();
   const { failureStreak } = useNodeStoreStatus();
   const [searchParams] = useSearchParams();
   const [collapsed, setCollapsed] = useState(readStoredCollapsed);
   const [gradientPanelOpen, setGradientPanelOpen] = useState(false);
+  const [stylePanelOpen, setStylePanelOpen] = useState(false);
+  const [sortPanelOpen, setSortPanelOpen] = useState(false);
   const showAdmin = config?.theme_settings?.enableAdminButton !== false;
   const showThemeManage = Boolean(me?.logged_in);
   const isThemeManageView = searchParams.get("view") === "theme-manage";
@@ -149,7 +180,11 @@ export function FloatingControls() {
               </button>
               <button
                 type="button"
-                onClick={() => setGradientPanelOpen((open) => !open)}
+                onClick={() => {
+                  setGradientPanelOpen((open) => !open);
+                  setStylePanelOpen(false);
+                  setSortPanelOpen(false);
+                }}
                 aria-label="渐变背板"
                 aria-expanded={gradientPanelOpen}
                 title="渐变背板"
@@ -160,6 +195,42 @@ export function FloatingControls() {
                 )}
               >
                 <Palette size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStylePanelOpen((open) => !open);
+                  setGradientPanelOpen(false);
+                  setSortPanelOpen(false);
+                }}
+                aria-label="卡片样式"
+                aria-expanded={stylePanelOpen}
+                title="卡片样式"
+                tabIndex={hiddenTabIndex}
+                className={clsx(
+                  "control-button control-toggle grid h-9 w-9 place-items-center",
+                  (stylePanelOpen || hasLocalVisualStyle) && "is-active",
+                )}
+              >
+                <Layers size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSortPanelOpen((open) => !open);
+                  setGradientPanelOpen(false);
+                  setStylePanelOpen(false);
+                }}
+                aria-label="首页排序"
+                aria-expanded={sortPanelOpen}
+                title="首页排序"
+                tabIndex={hiddenTabIndex}
+                className={clsx(
+                  "control-button control-toggle grid h-9 w-9 place-items-center",
+                  (sortPanelOpen || hasLocalNodeSort) && "is-active",
+                )}
+              >
+                <ArrowUpDown size={16} />
               </button>
             </div>
             {showThemeManage && (
@@ -199,6 +270,8 @@ export function FloatingControls() {
                 persistCollapsed(next);
                 if (next) {
                   setGradientPanelOpen(false);
+                  setStylePanelOpen(false);
+                  setSortPanelOpen(false);
                 }
                 return next;
               });
@@ -418,6 +491,160 @@ export function FloatingControls() {
                 <span>恢复全站默认</span>
               </button>
             </div>
+          </div>
+        )}
+        {stylePanelOpen && !collapsed && (
+          <div className="visual-style-quick-panel">
+            <div className="gradient-quick-panel-head">
+              <div>
+                <div className="gradient-quick-title">卡片与跑马灯</div>
+                <div className="gradient-quick-subtitle">{visualStyleSourceLabel}</div>
+              </div>
+              <button
+                type="button"
+                className="theme-manage-button is-compact"
+                onClick={clearLocalVisualStyle}
+                disabled={!hasLocalVisualStyle}
+                title={hasLocalVisualStyle ? "恢复全站默认" : "当前已经是默认样式"}
+              >
+                <span>恢复全站默认</span>
+              </button>
+            </div>
+
+            <div className="visual-style-section">
+              <div className="visual-style-section-title">卡片样式</div>
+              <div className="visual-style-preset-list">
+                {CARD_STYLE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="visual-style-preset"
+                    data-active={visualStyle.cardStyle === preset.id ? "true" : "false"}
+                    onClick={() => updateVisualStyle({ cardStyle: preset.id })}
+                  >
+                    <span className="visual-style-preset-name">{preset.label}</span>
+                    <span className="visual-style-preset-copy">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="visual-style-section">
+              <div className="visual-style-section-title">跑马灯配色</div>
+              <div className="visual-style-preset-list">
+                {MARQUEE_PALETTE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="visual-style-preset"
+                    data-active={visualStyle.marqueePalette === preset.id ? "true" : "false"}
+                    onClick={() =>
+                      updateVisualStyle({
+                        marqueePalette: preset.id,
+                        colors: preset.colors,
+                      })
+                    }
+                  >
+                    <span className="visual-style-preset-head">
+                      <span className="visual-style-preset-name">{preset.label}</span>
+                      <span className="marquee-swatch-row" aria-hidden>
+                        {Object.values(preset.colors).slice(0, 6).map((color) => (
+                          <span key={color} style={{ background: color }} />
+                        ))}
+                      </span>
+                    </span>
+                    <span className="visual-style-preset-copy">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="visual-style-section">
+              <div className="visual-style-section-title">自定义指标颜色</div>
+              <div className="visual-color-grid">
+                {VISUAL_COLOR_CONTROLS.map(({ key, label }) => (
+                  <label key={key} className="visual-color-control">
+                    <span>{label}</span>
+                    <input
+                      type="color"
+                      value={visualStyle.colors[key]}
+                      onChange={(event) =>
+                        updateVisualStyle({
+                          marqueePalette: "custom",
+                          colors: {
+                            ...visualStyle.colors,
+                            [key]: event.target.value,
+                          },
+                        })
+                      }
+                      aria-label={label}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {sortPanelOpen && !collapsed && (
+          <div className="visual-style-quick-panel">
+            <div className="gradient-quick-panel-head">
+              <div>
+                <div className="gradient-quick-title">首页排序</div>
+                <div className="gradient-quick-subtitle">{nodeSortSourceLabel}</div>
+              </div>
+              <button
+                type="button"
+                className="theme-manage-button is-compact"
+                onClick={clearLocalNodeSort}
+                disabled={!hasLocalNodeSort}
+                title={hasLocalNodeSort ? "恢复全站默认" : "当前已经是默认排序"}
+              >
+                <span>恢复全站默认</span>
+              </button>
+            </div>
+
+            <div className="visual-style-section">
+              <div className="visual-style-section-title">排序方式</div>
+              <div className="visual-style-preset-list">
+                {HOMEPAGE_NODE_SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className="visual-style-preset"
+                    data-active={nodeSort.mode === option.value ? "true" : "false"}
+                    onClick={() => updateNodeSort({ mode: option.value })}
+                    title={option.description}
+                  >
+                    <span className="visual-style-preset-head">
+                      <span className="visual-style-preset-name">{option.label}</span>
+                      {option.realtime && <Cpu size={13} aria-hidden />}
+                    </span>
+                    <span className="visual-style-preset-copy">{option.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {isRealtimeNodeSortMode(nodeSort.mode) && (
+              <div className="visual-style-section">
+                <div className="visual-style-section-title">快照间隔</div>
+                <div className="node-sort-interval-grid">
+                  {NODE_SORT_INTERVAL_OPTIONS.map((seconds) => (
+                    <button
+                      key={seconds}
+                      type="button"
+                      className={clsx(
+                        "gradient-preset-button",
+                        nodeSort.realtimeIntervalSeconds === seconds && "is-active",
+                      )}
+                      onClick={() => updateNodeSort({ realtimeIntervalSeconds: seconds })}
+                    >
+                      <span>{seconds}s</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {showSyncWarning && !collapsed && (

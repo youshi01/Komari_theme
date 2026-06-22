@@ -8,6 +8,7 @@ interface QualityBarsProps {
   value: number | null | undefined;
   count?: number;
   buckets?: PingOverviewBucket[];
+  color?: string;
   redrawKey?: string;
   onHoverIndex?: (index: number | null) => void;
 }
@@ -16,11 +17,12 @@ export function QualityBars({
   value,
   count,
   buckets,
+  color,
   redrawKey,
   onHoverIndex,
 }: QualityBarsProps) {
   const hasValue = value != null && Number.isFinite(value);
-  const fallbackTone = hasValue ? lossHeatColor(value) : "var(--progress-bg)";
+  const fallbackTone = color ?? (hasValue ? lossHeatColor(value) : "var(--progress-bg)");
   const resolvedCount = count ?? Math.max(1, buckets?.length ?? 24);
   const bars = Array.from({ length: resolvedCount }, (_, index) => {
     const bucket = buckets?.[index] ?? null;
@@ -31,7 +33,7 @@ export function QualityBars({
       (bucket?.total ?? 0) > 0;
     const loss = hasBucketValue ? bucketLoss : null;
     const active = hasBucketValue || (!buckets?.length && hasValue);
-    const tone = hasBucketValue ? lossHeatColor(loss) : fallbackTone;
+    const tone = color ?? (hasBucketValue ? lossHeatColor(loss) : fallbackTone);
 
     return {
       active,
@@ -55,7 +57,8 @@ export function QualityBars({
       }}
       onHoverIndex={onHoverIndex}
       draw={(ctx, width, height) => {
-        const inactiveColor = resolveCssColor("var(--progress-bg)");
+        const styles = getComputedStyle(document.documentElement);
+        const inactiveColor = resolveCssColor("var(--progress-bg)", styles);
         const gap = bars.length > 48 ? 1 : 2;
         const barWidth = Math.max(1, (width - gap * (bars.length - 1)) / Math.max(1, bars.length));
         const barHeight = height * ACTIVE_BAR_HEIGHT;
@@ -64,7 +67,7 @@ export function QualityBars({
         bars.forEach(({ active, tone }, index) => {
           const x = index * (barWidth + gap);
           ctx.globalAlpha = active ? 0.94 : 0.42;
-          ctx.fillStyle = active ? tone : inactiveColor;
+          ctx.fillStyle = active ? resolveCssColor(tone, styles) : inactiveColor;
           fillRoundedRect(ctx, x, y, barWidth, barHeight, 2);
         });
 
