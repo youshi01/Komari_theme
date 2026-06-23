@@ -5,9 +5,54 @@ interface CanvasStripProps {
   height: number;
   ariaHidden?: boolean;
   redrawKey?: string | number;
-  draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void;
+  draw: (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    now: number,
+  ) => void;
+  animated?: boolean;
+  frameIntervalMs?: number;
   getHoverIndex?: (offsetX: number, width: number) => number | null;
   onHoverIndex?: (index: number | null) => void;
+}
+
+interface AnimationSubscriber {
+  paint: (now: number) => void;
+  frameIntervalMs: number;
+  lastPaintAt: number;
+}
+
+const animationSubscribers = new Set<AnimationSubscriber>();
+let animationFrameId: number | null = null;
+
+function runAnimationLoop(now: number) {
+  for (const subscriber of animationSubscribers) {
+    if (now - subscriber.lastPaintAt < subscriber.frameIntervalMs) continue;
+    subscriber.lastPaintAt = now;
+    subscriber.paint(now);
+  }
+
+  if (animationSubscribers.size > 0) {
+    animationFrameId = window.requestAnimationFrame(runAnimationLoop);
+  } else {
+    animationFrameId = null;
+  }
+}
+
+function subscribeAnimation(subscriber: AnimationSubscriber) {
+  animationSubscribers.add(subscriber);
+  if (animationFrameId == null) {
+    animationFrameId = window.requestAnimationFrame(runAnimationLoop);
+  }
+
+  return () => {
+    animationSubscribers.delete(subscriber);
+    if (animationSubscribers.size === 0 && animationFrameId != null) {
+      window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  };
 }
 
 export function resolveCssColor(
@@ -90,6 +135,8 @@ export function CanvasStrip({
   ariaHidden = false,
   redrawKey,
   draw,
+  animated = false,
+  frameIntervalMs = 1000 / 24,
   getHoverIndex,
   onHoverIndex,
 }: CanvasStripProps) {
@@ -123,10 +170,25 @@ export function CanvasStrip({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    draw(ctx, width, height);
-  }, [draw, height, redrawKey, width]);
+    const paint = (now: number) => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      draw(ctx, width, height, now);
+    };
+
+    if (!animated) {
+      paint(performance.now());
+      return;
+    }
+
+    const startedAt = performance.now();
+    paint(startedAt);
+    return subscribeAnimation({
+      paint,
+      frameIntervalMs,
+      lastPaintAt: startedAt,
+    });
+  }, [animated, draw, frameIntervalMs, height, redrawKey, width]);
 
   const handlePointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
     if (!getHoverIndex || !onHoverIndex || width <= 0) return;

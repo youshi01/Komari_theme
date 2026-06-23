@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpDown,
@@ -28,9 +28,11 @@ import {
 import {
   CARD_STYLE_PRESETS,
   MARQUEE_PALETTE_PRESETS,
+  MARQUEE_STYLE_PRESETS,
   VISUAL_COLOR_CONTROLS,
   useVisualStyle,
 } from "@/hooks/useVisualStyle";
+import { MarqueePreviewStrip } from "@/components/node/MarqueePreviewStrip";
 import {
   HOMEPAGE_NODE_SORT_OPTIONS,
   NODE_SORT_INTERVAL_OPTIONS,
@@ -69,6 +71,7 @@ function persistCollapsed(value: boolean) {
 }
 
 export function FloatingControls() {
+  const controlsRef = useRef<HTMLDivElement | null>(null);
   const { appearance, setAppearance } = usePreferences();
   const { backgroundBoardVisible, toggleBackgroundBoardVisible } =
     useBackgroundBoardToggle();
@@ -101,6 +104,7 @@ export function FloatingControls() {
   const [gradientPanelOpen, setGradientPanelOpen] = useState(false);
   const [stylePanelOpen, setStylePanelOpen] = useState(false);
   const [sortPanelOpen, setSortPanelOpen] = useState(false);
+  const anyPanelOpen = gradientPanelOpen || stylePanelOpen || sortPanelOpen;
   const showAdmin = config?.theme_settings?.enableAdminButton !== false;
   const showThemeManage = Boolean(me?.logged_in);
   const isThemeManageView = searchParams.get("view") === "theme-manage";
@@ -126,12 +130,32 @@ export function FloatingControls() {
       ? "先添加图片背景"
       : "先在主题设置启用图片背景";
 
+  useEffect(() => {
+    if (!anyPanelOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (controlsRef.current?.contains(target)) return;
+
+      setGradientPanelOpen(false);
+      setStylePanelOpen(false);
+      setSortPanelOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [anyPanelOpen]);
+
   if (isThemeManageView) {
     return null;
   }
 
   return (
     <div
+      ref={controlsRef}
       className={clsx(
         "floating-controls",
         collapsed && "is-collapsed",
@@ -527,6 +551,70 @@ export function FloatingControls() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="visual-style-section">
+              <div className="visual-style-section-title">跑马灯样式</div>
+              <div className="visual-style-preset-list">
+                {MARQUEE_STYLE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="visual-style-preset"
+                    data-active={
+                      visualStyle.marqueeStyle.preset === preset.id ? "true" : "false"
+                    }
+                    onClick={() =>
+                      updateVisualStyle({
+                        marqueeStyle: { ...preset.settings },
+                      })
+                    }
+                  >
+                    <span className="visual-style-preset-name">{preset.label}</span>
+                    <span className="visual-style-preset-copy">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="visual-style-section">
+              <div className="visual-style-section-title">动态细节</div>
+              <MarqueePreviewStrip
+                className="marquee-style-preview-strip"
+                style={visualStyle.marqueeStyle}
+                colors={visualStyle.colors}
+                height={16}
+              />
+              {(
+                [
+                  ["density", "密度"],
+                  ["radius", "圆角"],
+                  ["glow", "光晕"],
+                  ["motion", "动效"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="gradient-range-control">
+                  <span>
+                    <span>{label}</span>
+                    <strong>{visualStyle.marqueeStyle[key]}%</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={visualStyle.marqueeStyle[key]}
+                    onChange={(event) =>
+                      updateVisualStyle({
+                        marqueeStyle: {
+                          ...visualStyle.marqueeStyle,
+                          preset: "custom",
+                          [key]: Number(event.target.value),
+                        },
+                      })
+                    }
+                  />
+                </label>
+              ))}
             </div>
 
             <div className="visual-style-section">

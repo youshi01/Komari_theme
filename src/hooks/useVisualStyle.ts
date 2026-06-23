@@ -9,6 +9,13 @@ export type MarqueePalettePresetId =
   | "pastel"
   | "status"
   | "custom";
+export type MarqueeShapeId =
+  | "classic"
+  | "aurora"
+  | "circuit"
+  | "neon"
+  | "equalizer";
+export type MarqueeStylePresetId = MarqueeShapeId | "custom";
 export type VisualStyleSource = "local" | "global" | "default";
 
 export interface VisualMetricColors {
@@ -24,9 +31,19 @@ export interface VisualMetricColors {
   idle: string;
 }
 
+export interface MarqueeStyleSettings {
+  preset: MarqueeStylePresetId;
+  shape: MarqueeShapeId;
+  density: number;
+  radius: number;
+  glow: number;
+  motion: number;
+}
+
 export interface VisualStyleSettings {
   cardStyle: CardStylePresetId;
   marqueePalette: MarqueePalettePresetId;
+  marqueeStyle: MarqueeStyleSettings;
   colors: VisualMetricColors;
 }
 
@@ -41,6 +58,13 @@ export interface MarqueePalettePreset {
   label: string;
   description: string;
   colors: VisualMetricColors;
+}
+
+export interface MarqueeStylePreset {
+  id: Exclude<MarqueeStylePresetId, "custom">;
+  label: string;
+  description: string;
+  settings: MarqueeStyleSettings;
 }
 
 export const CARD_STYLE_PRESETS: CardStylePreset[] = [
@@ -159,6 +183,74 @@ export const MARQUEE_PALETTE_PRESETS: MarqueePalettePreset[] = [
   },
 ];
 
+export const MARQUEE_STYLE_PRESETS: MarqueeStylePreset[] = [
+  {
+    id: "classic",
+    label: "经典点阵",
+    description: "稳定耐看，接近原始跑马灯",
+    settings: {
+      preset: "classic",
+      shape: "classic",
+      density: 45,
+      radius: 55,
+      glow: 12,
+      motion: 0,
+    },
+  },
+  {
+    id: "aurora",
+    label: "极光丝带",
+    description: "柔和连线与轻微流动",
+    settings: {
+      preset: "aurora",
+      shape: "aurora",
+      density: 64,
+      radius: 100,
+      glow: 58,
+      motion: 46,
+    },
+  },
+  {
+    id: "circuit",
+    label: "电路线条",
+    description: "硬朗折线、节点闪烁",
+    settings: {
+      preset: "circuit",
+      shape: "circuit",
+      density: 78,
+      radius: 8,
+      glow: 30,
+      motion: 34,
+    },
+  },
+  {
+    id: "neon",
+    label: "霓虹脉冲",
+    description: "高亮胶囊与呼吸光晕",
+    settings: {
+      preset: "neon",
+      shape: "neon",
+      density: 52,
+      radius: 100,
+      glow: 88,
+      motion: 72,
+    },
+  },
+  {
+    id: "equalizer",
+    label: "均衡器方块",
+    description: "堆叠块状，节奏感更强",
+    settings: {
+      preset: "equalizer",
+      shape: "equalizer",
+      density: 70,
+      radius: 28,
+      glow: 36,
+      motion: 54,
+    },
+  },
+];
+
 export const VISUAL_COLOR_CONTROLS: Array<{
   key: keyof VisualMetricColors;
   label: string;
@@ -176,9 +268,12 @@ export const VISUAL_COLOR_CONTROLS: Array<{
 ];
 
 const STORAGE_KEY = "komari-theme-YS:visual-style";
+export const DEFAULT_MARQUEE_STYLE_SETTINGS =
+  MARQUEE_STYLE_PRESETS[0].settings;
 export const DEFAULT_VISUAL_STYLE_SETTINGS: VisualStyleSettings = {
   cardStyle: "panel",
   marqueePalette: "health",
+  marqueeStyle: DEFAULT_MARQUEE_STYLE_SETTINGS,
   colors: MARQUEE_PALETTE_PRESETS[0].colors,
 };
 
@@ -210,10 +305,31 @@ function isMarqueePalette(value: unknown): value is MarqueePalettePresetId {
   );
 }
 
+function isMarqueeShape(value: unknown): value is MarqueeShapeId {
+  return (
+    value === "classic" ||
+    value === "aurora" ||
+    value === "circuit" ||
+    value === "neon" ||
+    value === "equalizer"
+  );
+}
+
+function isMarqueeStyle(value: unknown): value is MarqueeStylePresetId {
+  return isMarqueeShape(value) || value === "custom";
+}
+
 function getMarqueePalette(id: MarqueePalettePresetId) {
   return (
     MARQUEE_PALETTE_PRESETS.find((preset) => preset.id === id) ??
     MARQUEE_PALETTE_PRESETS[0]
+  );
+}
+
+function getMarqueeStylePreset(id: MarqueeStylePresetId) {
+  return (
+    MARQUEE_STYLE_PRESETS.find((preset) => preset.id === id) ??
+    MARQUEE_STYLE_PRESETS[0]
   );
 }
 
@@ -225,6 +341,35 @@ function normalizeColor(value: unknown, fallback: string) {
 
 function isSettingsObject(value: unknown) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function normalizePercent(value: unknown, fallback: number) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+export function normalizeMarqueeStyleSettings(
+  value: unknown,
+): MarqueeStyleSettings {
+  if (!isSettingsObject(value)) return DEFAULT_MARQUEE_STYLE_SETTINGS;
+  const record = value as Partial<MarqueeStyleSettings>;
+  const preset = isMarqueeStyle(record.preset)
+    ? record.preset
+    : DEFAULT_MARQUEE_STYLE_SETTINGS.preset;
+  const presetSettings =
+    preset === "custom"
+      ? DEFAULT_MARQUEE_STYLE_SETTINGS
+      : getMarqueeStylePreset(preset).settings;
+
+  return {
+    preset,
+    shape: isMarqueeShape(record.shape) ? record.shape : presetSettings.shape,
+    density: normalizePercent(record.density, presetSettings.density),
+    radius: normalizePercent(record.radius, presetSettings.radius),
+    glow: normalizePercent(record.glow, presetSettings.glow),
+    motion: normalizePercent(record.motion, presetSettings.motion),
+  };
 }
 
 export function normalizeVisualStyleSettings(value: unknown): VisualStyleSettings {
@@ -243,6 +388,7 @@ export function normalizeVisualStyleSettings(value: unknown): VisualStyleSetting
       ? record.cardStyle
       : DEFAULT_VISUAL_STYLE_SETTINGS.cardStyle,
     marqueePalette,
+    marqueeStyle: normalizeMarqueeStyleSettings(record.marqueeStyle),
     colors: {
       cpu: normalizeColor(colors.cpu, fallbackColors.cpu),
       memory: normalizeColor(colors.memory, fallbackColors.memory),
@@ -373,6 +519,11 @@ function applyDocumentStyle(settings: VisualStyleSettings) {
 
   root.dataset.cardStyle = normalized.cardStyle;
   root.dataset.marqueePalette = normalized.marqueePalette;
+  root.dataset.marqueeStyle = normalized.marqueeStyle.shape;
+  root.style.setProperty("--ys-marquee-density", `${normalized.marqueeStyle.density}`);
+  root.style.setProperty("--ys-marquee-radius", `${normalized.marqueeStyle.radius}`);
+  root.style.setProperty("--ys-marquee-glow", `${normalized.marqueeStyle.glow}`);
+  root.style.setProperty("--ys-marquee-motion", `${normalized.marqueeStyle.motion}`);
   root.style.setProperty("--ys-metric-cpu", normalized.colors.cpu);
   root.style.setProperty("--ys-metric-memory", normalized.colors.memory);
   root.style.setProperty("--ys-metric-disk", normalized.colors.disk);

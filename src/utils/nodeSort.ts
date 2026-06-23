@@ -7,6 +7,8 @@ export type HomepageNodeSortMode =
   | "expiry-desc"
   | "name-asc"
   | "name-desc"
+  | "uptime-desc"
+  | "uptime-asc"
   | "cpu-desc"
   | "cpu-asc";
 
@@ -56,6 +58,16 @@ export const HOMEPAGE_NODE_SORT_OPTIONS: HomepageNodeSortOption[] = [
     description: "按服务器名称倒序",
   },
   {
+    value: "uptime-desc",
+    label: "在线最长",
+    description: "按在线时长从长到短排序，离线排最后",
+  },
+  {
+    value: "uptime-asc",
+    label: "在线最短",
+    description: "按在线时长从短到长排序，离线排最后",
+  },
+  {
     value: "cpu-desc",
     label: "CPU 高到低",
     description: "按快照中的 CPU 占用排序",
@@ -80,6 +92,8 @@ export function isHomepageNodeSortMode(value: unknown): value is HomepageNodeSor
     value === "expiry-desc" ||
     value === "name-asc" ||
     value === "name-desc" ||
+    value === "uptime-desc" ||
+    value === "uptime-asc" ||
     value === "cpu-desc" ||
     value === "cpu-asc"
   );
@@ -163,6 +177,11 @@ function compareFiniteNumber(
   return direction === "asc" ? left - right : right - left;
 }
 
+function toSortableUptime(node: NodeDisplay): number | null {
+  if (node.online === false) return null;
+  return Number.isFinite(node.uptime) && node.uptime > 0 ? node.uptime : null;
+}
+
 export function sortHomepageNodes(
   nodes: readonly NodeDisplay[],
   orderValue: unknown,
@@ -205,6 +224,14 @@ export function sortHomepageNodes(
         left.node.cpuPct,
         right.node.cpuPct,
         settings.mode === "cpu-asc" ? "asc" : "desc",
+      );
+    }
+
+    if (settings.mode === "uptime-desc" || settings.mode === "uptime-asc") {
+      result = compareNullableNumber(
+        toSortableUptime(left.node),
+        toSortableUptime(right.node),
+        settings.mode === "uptime-asc" ? "asc" : "desc",
       );
     }
 

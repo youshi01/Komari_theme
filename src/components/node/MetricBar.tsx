@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
-import { CanvasStrip, fillRoundedRect, resolveCssColor } from "./CanvasStrip";
-
-const METRIC_SEGMENT_COUNT = 18;
+import type { MarqueeStyleSettings } from "@/hooks/useVisualStyle";
+import { CanvasStrip } from "./CanvasStrip";
+import {
+  buildProgressPoints,
+  drawMarqueeStrip,
+  getMarqueeFrameInterval,
+  shouldAnimateMarqueeStyle,
+} from "./marqueeStyle";
 
 type MetricPaint =
   | {
@@ -23,6 +28,7 @@ interface MetricBarProps {
   fraction: number; // 0..1
   redrawKey?: string;
   paint: MetricPaint;
+  marqueeStyle: MarqueeStyleSettings;
 }
 
 export function MetricBar({
@@ -34,9 +40,15 @@ export function MetricBar({
   fraction,
   redrawKey,
   paint,
+  marqueeStyle,
 }: MetricBarProps) {
   const clamped = Math.max(0, Math.min(1, fraction));
-  const activeSegments = clamped * METRIC_SEGMENT_COUNT;
+  const points = buildProgressPoints(clamped, marqueeStyle);
+  const activeColor = paint.kind === "gradient" ? paint.from : paint.color;
+  const accentColor =
+    paint.kind === "gradient"
+      ? paint.to
+      : "var(--ys-marquee-peak, var(--status-warning))";
 
   return (
     <div className="metric-item">
@@ -65,42 +77,21 @@ export function MetricBar({
           height={10}
           ariaHidden
           redrawKey={redrawKey}
-          draw={(ctx, width, height) => {
-            const styles = getComputedStyle(document.documentElement);
-            const inactiveColor = resolveCssColor("var(--progress-bg)", styles);
-            const gap = 2;
-            const segmentWidth = Math.max(
-              1,
-              (width - gap * (METRIC_SEGMENT_COUNT - 1)) / METRIC_SEGMENT_COUNT,
-            );
-            const activePaint =
-              paint.kind === "gradient"
-                ? (() => {
-                    const gradient = ctx.createLinearGradient(0, 0, width, 0);
-                    gradient.addColorStop(0, resolveCssColor(paint.from, styles));
-                    gradient.addColorStop(1, resolveCssColor(paint.to, styles));
-                    return gradient;
-                  })()
-                : resolveCssColor(paint.color, styles);
-
-            for (let index = 0; index < METRIC_SEGMENT_COUNT; index += 1) {
-              const x = index * (segmentWidth + gap);
-              const fillLevel = Math.max(0, Math.min(1, activeSegments - index));
-              const isActive = fillLevel > 0;
-
-              ctx.globalAlpha = 0.58;
-              ctx.fillStyle = inactiveColor;
-              fillRoundedRect(ctx, x, 0, segmentWidth, height, 2);
-
-              if (isActive) {
-                ctx.globalAlpha = 0.42 + fillLevel * 0.56;
-                ctx.fillStyle = activePaint;
-                fillRoundedRect(ctx, x, 0, segmentWidth, height, 2);
-              }
-            }
-
-            ctx.globalAlpha = 1;
-          }}
+          animated={shouldAnimateMarqueeStyle(marqueeStyle)}
+          frameIntervalMs={getMarqueeFrameInterval(marqueeStyle)}
+          draw={(ctx, width, height, now) =>
+            drawMarqueeStrip(ctx, width, height, {
+              points,
+              style: marqueeStyle,
+              variant: "progress",
+              now,
+              colors: {
+                base: activeColor,
+                accent: accentColor,
+                inactive: "var(--progress-bg)",
+              },
+            })
+          }
         />
       </div>
     </div>

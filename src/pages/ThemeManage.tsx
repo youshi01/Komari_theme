@@ -79,11 +79,13 @@ import {
   CARD_STYLE_PRESETS,
   DEFAULT_VISUAL_STYLE_SETTINGS,
   MARQUEE_PALETTE_PRESETS,
+  MARQUEE_STYLE_PRESETS,
   VISUAL_COLOR_CONTROLS,
   normalizeVisualStyleSettings,
   serializeVisualStyleSettings,
   type VisualStyleSettings,
 } from "@/hooks/useVisualStyle";
+import { MarqueePreviewStrip } from "@/components/node/MarqueePreviewStrip";
 import {
   normalizeHomepagePingTaskBindings,
   type HomepagePingTaskBindings,
@@ -961,6 +963,71 @@ export function ThemeManage() {
             <div className="surface-inset p-4">
               <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
                 <Sparkles size={14} />
+                <span>跑马灯样式预设</span>
+              </div>
+              <div className="visual-style-preset-list is-grid">
+                {MARQUEE_STYLE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="visual-style-preset"
+                    data-active={
+                      draftVisualStyle.marqueeStyle.preset === preset.id ? "true" : "false"
+                    }
+                    onClick={() =>
+                      updateDraftVisualStyle({
+                        marqueeStyle: { ...preset.settings },
+                      })
+                    }
+                  >
+                    <span className="visual-style-preset-name">{preset.label}</span>
+                    <span className="visual-style-preset-copy">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 grid gap-3">
+                <MarqueePreviewStrip
+                  className="marquee-style-preview-strip"
+                  style={draftVisualStyle.marqueeStyle}
+                  colors={draftVisualStyle.colors}
+                  height={18}
+                />
+                {(
+                  [
+                    ["density", "密度"],
+                    ["radius", "圆角"],
+                    ["glow", "光晕"],
+                    ["motion", "动效"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="gradient-range-control !mt-0">
+                    <span>
+                      <span>{label}</span>
+                      <strong>{draftVisualStyle.marqueeStyle[key]}%</strong>
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={draftVisualStyle.marqueeStyle[key]}
+                      onChange={(event) =>
+                        updateDraftVisualStyle({
+                          marqueeStyle: {
+                            ...draftVisualStyle.marqueeStyle,
+                            preset: "custom",
+                            [key]: Number(event.target.value),
+                          },
+                        })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="surface-inset p-4">
+              <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                <Sparkles size={14} />
                 <span>跑马灯配色预设</span>
               </div>
               <div className="visual-style-preset-list is-grid">
@@ -1039,6 +1106,7 @@ export function ThemeManage() {
           <div
             className="visual-style-preview surface-inset"
             data-card-style={draftVisualStyle.cardStyle}
+            data-marquee-style={draftVisualStyle.marqueeStyle.shape}
             style={
               (() => {
                 return {
@@ -1064,6 +1132,12 @@ export function ThemeManage() {
                     (preset) => preset.id === draftVisualStyle.cardStyle,
                   )?.label
                 }
+                {" / "}
+                {
+                  MARQUEE_STYLE_PRESETS.find(
+                    (preset) => preset.id === draftVisualStyle.marqueeStyle.shape,
+                  )?.label
+                }
               </span>
             </div>
             <div className="visual-style-preview-card">
@@ -1077,24 +1151,12 @@ export function ThemeManage() {
                 <span />
                 <span />
               </div>
-              <div className="visual-style-preview-marquee">
-                {Array.from({ length: 18 }).map((_, index) => (
-                  <span
-                    key={index}
-                    style={{
-                      background:
-                        index % 7 === 0
-                          ? "var(--ys-marquee-peak)"
-                          : index % 3 === 0
-                            ? "var(--ys-marquee-down)"
-                            : index % 5 === 0
-                              ? "var(--ys-marquee-idle)"
-                              : "var(--ys-marquee-up)",
-                      opacity: index % 5 === 0 ? 0.48 : 0.92,
-                    }}
-                  />
-                ))}
-              </div>
+              <MarqueePreviewStrip
+                className="visual-style-preview-marquee"
+                style={draftVisualStyle.marqueeStyle}
+                colors={draftVisualStyle.colors}
+                height={18}
+              />
               <div className="visual-style-preview-foot">
                 <span>128 MB/s</span>
                 <span>24 ms</span>
@@ -1384,7 +1446,7 @@ export function ThemeManage() {
                   全站默认排序方式
                 </div>
                 <div className="mt-1 text-[12px] text-[var(--text-tertiary)]">
-                  游客可以在首页临时覆盖；CPU 排序按快照间隔更新位置
+                  游客可以在首页临时覆盖；在线时长和 CPU 排序按实时状态更新
                 </div>
               </div>
               {isRealtimeNodeSortMode(draftNodeSort.mode) && (

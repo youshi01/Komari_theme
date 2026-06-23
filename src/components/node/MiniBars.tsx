@@ -1,4 +1,10 @@
-import { CanvasStrip, fillRoundedRect, resolveCssColor } from "./CanvasStrip";
+import type { MarqueeStyleSettings } from "@/hooks/useVisualStyle";
+import { CanvasStrip } from "./CanvasStrip";
+import {
+  drawMarqueeStrip,
+  getMarqueeFrameInterval,
+  shouldAnimateMarqueeStyle,
+} from "./marqueeStyle";
 import { latencyHeatColor } from "@/utils/metricTone";
 import type { PingOverviewBucket } from "@/types/komari";
 
@@ -13,6 +19,7 @@ interface MiniBarsProps {
   count?: number;
   buckets?: PingOverviewBucket[];
   color?: string;
+  marqueeStyle: MarqueeStyleSettings;
   redrawKey?: string;
   onHoverIndex?: (index: number | null) => void;
 }
@@ -25,9 +32,11 @@ export function MiniBars({
   count = 24,
   buckets,
   color,
+  marqueeStyle,
   redrawKey,
   onHoverIndex,
 }: MiniBarsProps) {
+  const baseTone = color ?? latencyHeatColor(lastValue);
   const bars: Array<{ value: number; bucket: PingOverviewBucket | null; hasSamples: boolean; tone: string }> =
     buckets && buckets.length > 0
       ? buckets.map((bucket) => {
@@ -36,11 +45,10 @@ export function MiniBars({
             value,
             bucket,
             hasSamples: bucket.total > 0,
-            tone: color ?? latencyHeatColor(bucket.value),
+            tone: baseTone,
           };
         })
       : (() => {
-          const fallbackTone = color ?? latencyHeatColor(lastValue);
           const nextBars: Array<{
             value: number;
             bucket: PingOverviewBucket | null;
@@ -54,7 +62,7 @@ export function MiniBars({
                 value: 0,
                 bucket: null,
                 hasSamples: false,
-                tone: fallbackTone,
+                tone: baseTone,
               });
             }
             return nextBars;
@@ -67,7 +75,7 @@ export function MiniBars({
                 value: 0,
                 bucket: null,
                 hasSamples: false,
-                tone: fallbackTone,
+                tone: baseTone,
               });
             }
             values.forEach((value) => {
@@ -75,7 +83,7 @@ export function MiniBars({
                 value,
                 bucket: null,
                 hasSamples: true,
-                tone: color ?? latencyHeatColor(value > 0 ? value : lastValue),
+                tone: baseTone,
               });
             });
             return nextBars;
@@ -94,11 +102,40 @@ export function MiniBars({
               value: avg,
               bucket: null,
               hasSamples: slice.length > 0,
-              tone: color ?? latencyHeatColor(avg > 0 ? avg : lastValue),
+              tone: baseTone,
             });
           }
           return nextBars;
         })();
+  const safeMax = Math.max(1, max);
+  const positiveValues = bars
+    .map((bar) => bar.value)
+    .filter((value) => value > 0 && Number.isFinite(value));
+  const latencyMin = positiveValues.length > 0 ? Math.min(...positiveValues) : 0;
+  const latencyMax = positiveValues.length > 0 ? Math.max(...positiveValues) : safeMax;
+  const latencyRange = Math.max(1, latencyMax - latencyMin);
+  const detailMarqueeStyle = {
+    ...marqueeStyle,
+    glow: Math.min(42, Math.round(marqueeStyle.glow * 0.58)),
+    motion: Math.min(32, Math.round(marqueeStyle.motion * 0.52)),
+  };
+  const points = bars.map(({ value, tone, hasSamples }) => {
+    const active = hasSamples && value > 0;
+    const relative = active
+      ? latencyRange > 3
+        ? Math.max(0, Math.min(1, (value - latencyMin) / latencyRange))
+        : Math.max(0, Math.min(1, value / safeMax))
+      : 0;
+    return {
+      level: active ? Math.max(0.2, Math.min(1, value / safeMax)) : 0.18,
+      active,
+      opacity: active ? 0.74 + relative * 0.22 : 0.42,
+      accentShare: 0,
+      color: tone,
+      toneOffset: active ? 0.24 - relative * 0.5 : 0,
+    };
+  });
+  const hasActivePoints = points.some((point) => point.active);
 
   return (
     <CanvasStrip
@@ -106,6 +143,8 @@ export function MiniBars({
       height={16}
       ariaHidden
       redrawKey={redrawKey}
+      animated={hasActivePoints && shouldAnimateMarqueeStyle(detailMarqueeStyle)}
+      frameIntervalMs={getMarqueeFrameInterval(detailMarqueeStyle)}
       getHoverIndex={(offsetX, width) => {
         if (bars.length === 0 || width <= 0) return null;
         const slotWidth = width / bars.length;
@@ -114,25 +153,19 @@ export function MiniBars({
         return bar?.bucket?.index ?? (bar?.hasSamples ? index : null);
       }}
       onHoverIndex={onHoverIndex}
-      draw={(ctx, width, height) => {
-        const styles = getComputedStyle(document.documentElement);
-        const inactiveColor = resolveCssColor("var(--progress-bg)", styles);
-        const gap = bars.length > 48 ? 1 : 2;
-        const barWidth = Math.max(1, (width - gap * (bars.length - 1)) / Math.max(1, bars.length));
-
-        bars.forEach(({ value, tone }, index) => {
-          const has = value > 0;
-          const barHeight = height * (has ? Math.max(0.2, Math.min(1, value / max)) : 0.25);
-          const x = index * (barWidth + gap);
-          const y = height - barHeight;
-
-          ctx.globalAlpha = has ? 0.92 : 0.55;
-          ctx.fillStyle = has ? resolveCssColor(tone, styles) : inactiveColor;
-          fillRoundedRect(ctx, x, y, barWidth, barHeight, 2);
-        });
-
-        ctx.globalAlpha = 1;
-      }}
+      draw={(ctx, width, height, now) =>
+        drawMarqueeStrip(ctx, width, height, {
+          points,
+          style: detailMarqueeStyle,
+          variant: "histogram",
+          now,
+          colors: {
+            base: color ?? "var(--ys-metric-latency, var(--status-online))",
+            accent: color ?? "var(--ys-metric-latency, var(--status-online))",
+            inactive: "var(--progress-bg)",
+          },
+        })
+      }
     />
   );
 }

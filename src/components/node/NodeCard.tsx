@@ -31,10 +31,16 @@ import { Flag } from "@/components/ui/Flag";
 import { MetricBar } from "./MetricBar";
 import { MiniBars } from "./MiniBars";
 import { QualityBars } from "./QualityBars";
-import { CanvasStrip, resolveCssColor } from "./CanvasStrip";
+import { CanvasStrip } from "./CanvasStrip";
+import {
+  drawMarqueeStrip,
+  getMarqueeFrameInterval,
+  shouldAnimateMarqueeStyle,
+} from "./marqueeStyle";
 import { clsx } from "clsx";
 import type { PingOverviewBucket, TrafficTrendSample } from "@/types/komari";
 import type { TrafficRateDisplay } from "@/utils/format";
+import type { MarqueeStyleSettings } from "@/hooks/useVisualStyle";
 
 function buildSubtitle(parts: Array<string | null | undefined>) {
   return parts
@@ -77,9 +83,11 @@ function formatLossBucketSummary(bucket: PingOverviewBucket | null) {
 export const NodeCard = memo(function NodeCard({
   uuid,
   visualRedrawKey,
+  marqueeStyle,
 }: {
   uuid: string;
   visualRedrawKey: string;
+  marqueeStyle: MarqueeStyleSettings;
 }) {
   const { resolvedAppearance } = usePreferences();
   const node = useNode(uuid);
@@ -215,6 +223,7 @@ export const NodeCard = memo(function NodeCard({
               fraction={node.cpuPct / 100}
               redrawKey={metricRedrawKey}
               paint={{ kind: "solid", color: "var(--ys-metric-cpu, var(--progress-cpu))" }}
+              marqueeStyle={marqueeStyle}
             />
             <MetricBar
               icon={<MemoryStick size={13} strokeWidth={2} />}
@@ -225,6 +234,7 @@ export const NodeCard = memo(function NodeCard({
               fraction={node.ramPct / 100}
               redrawKey={metricRedrawKey}
               paint={{ kind: "solid", color: "var(--ys-metric-memory, var(--progress-memory))" }}
+              marqueeStyle={marqueeStyle}
             />
             <MetricBar
               icon={<HardDrive size={13} strokeWidth={2} />}
@@ -235,6 +245,7 @@ export const NodeCard = memo(function NodeCard({
               fraction={node.diskPct / 100}
               redrawKey={metricRedrawKey}
               paint={{ kind: "solid", color: "var(--ys-metric-disk, var(--progress-disk))" }}
+              marqueeStyle={marqueeStyle}
             />
             <MetricBar
               icon={<Gauge size={13} strokeWidth={2} />}
@@ -247,6 +258,7 @@ export const NodeCard = memo(function NodeCard({
                 from: "var(--ys-metric-load, var(--progress-cpu))",
                 to: "var(--ys-metric-memory, var(--progress-memory))",
               }}
+              marqueeStyle={marqueeStyle}
             />
           </div>
 
@@ -260,6 +272,7 @@ export const NodeCard = memo(function NodeCard({
               live={isOnline}
               redrawKey={metricRedrawKey}
               color="var(--ys-marquee-up, var(--progress-cpu))"
+              marqueeStyle={marqueeStyle}
               icon={<ArrowUp size={15} strokeWidth={2.4} />}
             />
             <TrafficStat
@@ -271,6 +284,7 @@ export const NodeCard = memo(function NodeCard({
               live={isOnline}
               redrawKey={metricRedrawKey}
               color="var(--ys-marquee-down, var(--status-success))"
+              marqueeStyle={marqueeStyle}
               icon={<ArrowDown size={15} strokeWidth={2.4} />}
             />
           </div>
@@ -306,6 +320,7 @@ export const NodeCard = memo(function NodeCard({
                     lastValue={ping.lastValue ?? undefined}
                     buckets={pingBuckets}
                     color="var(--ys-metric-latency, var(--status-online))"
+                    marqueeStyle={marqueeStyle}
                     redrawKey={metricRedrawKey}
                     onHoverIndex={setHoveredLatencyIndex}
                   />
@@ -352,6 +367,7 @@ export const NodeCard = memo(function NodeCard({
                     value={ping.loss}
                     buckets={pingBuckets}
                     color="var(--ys-metric-loss, var(--status-offline))"
+                    marqueeStyle={marqueeStyle}
                     redrawKey={metricRedrawKey}
                     onHoverIndex={setHoveredLossIndex}
                   />
@@ -426,6 +442,7 @@ function TrafficStat({
   live,
   redrawKey,
   color,
+  marqueeStyle,
   icon,
 }: {
   direction: "下行" | "上行";
@@ -436,6 +453,7 @@ function TrafficStat({
   live: boolean;
   redrawKey: string;
   color: string;
+  marqueeStyle: MarqueeStyleSettings;
   icon: ReactNode;
 }) {
   return (
@@ -451,7 +469,12 @@ function TrafficStat({
         </span>
       </div>
       <div className="traffic-stat-trend" aria-hidden>
-        <TrafficDotStrip samples={samples} color={color} redrawKey={redrawKey} />
+        <TrafficDotStrip
+          samples={samples}
+          color={color}
+          marqueeStyle={marqueeStyle}
+          redrawKey={redrawKey}
+        />
         <span className="traffic-stat-live" data-live={live ? "true" : "false"}>
           <span
             className="traffic-stat-live-dot"
@@ -476,46 +499,44 @@ function TrafficStat({
 function TrafficDotStrip({
   samples,
   color,
+  marqueeStyle,
   redrawKey,
 }: {
   samples: TrafficTrendSample[];
   color: string;
+  marqueeStyle: MarqueeStyleSettings;
   redrawKey: string;
 }) {
+  const points = samples.map((sample) => {
+    const active = sample.value > 0;
+    return {
+      active,
+      level: active ? Math.max(0.08, Math.min(1, sample.level)) : 0.16,
+      opacity: active ? Math.min(1, sample.opacity + 0.05) : 0.46,
+    };
+  });
+
   return (
     <CanvasStrip
       className="traffic-dot-strip"
       height={10}
       ariaHidden
       redrawKey={redrawKey}
-      draw={(ctx, width, height) => {
-        if (samples.length === 0) return;
-        const slotWidth = width / samples.length;
-        const styles = getComputedStyle(document.documentElement);
-        const baseColor = resolveCssColor(color, styles);
-        const peakColor = resolveCssColor("var(--ys-marquee-peak, white)", styles);
-        const inactiveColor = resolveCssColor("var(--ys-marquee-idle, var(--progress-bg))", styles);
-
-        samples.forEach((sample, index) => {
-          const hasTraffic = sample.value > 0;
-          const scale = hasTraffic ? 0.72 + sample.level * 0.82 : 0.46;
-          const radius = 2 * scale;
-          const peakShare = Math.round(18 + sample.level * 34);
-          const tone = hasTraffic
-            ? `color-mix(in srgb, ${baseColor} ${100 - peakShare}%, ${peakColor} ${peakShare}%)`
-            : inactiveColor;
-          const x = index * slotWidth + slotWidth / 2;
-          const y = height / 2;
-
-          ctx.beginPath();
-          ctx.arc(x, y, radius, 0, Math.PI * 2);
-          ctx.fillStyle = tone;
-          ctx.globalAlpha = hasTraffic ? Math.min(1, sample.opacity + 0.05) : 0.46;
-          ctx.fill();
-        });
-
-        ctx.globalAlpha = 1;
-      }}
+      animated={shouldAnimateMarqueeStyle(marqueeStyle)}
+      frameIntervalMs={getMarqueeFrameInterval(marqueeStyle)}
+      draw={(ctx, width, height, now) =>
+        drawMarqueeStrip(ctx, width, height, {
+          points,
+          style: marqueeStyle,
+          variant: "trend",
+          now,
+          colors: {
+            base: color,
+            accent: "var(--ys-marquee-peak, white)",
+            inactive: "var(--ys-marquee-idle, var(--progress-bg))",
+          },
+        })
+      }
     />
   );
 }

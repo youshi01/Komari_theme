@@ -108,7 +108,11 @@ export function NodeGrid() {
       >
         {uuids.map((uuid) => (
           <div key={uuid}>
-            <NodeCard uuid={uuid} visualRedrawKey={visualRedrawKey} />
+            <NodeCard
+              uuid={uuid}
+              visualRedrawKey={visualRedrawKey}
+              marqueeStyle={visualStyle.marqueeStyle}
+            />
           </div>
         ))}
       </div>
