@@ -76,11 +76,14 @@ import {
   type GradientBackgroundSettings,
 } from "@/hooks/useGradientBackground";
 import {
+  CARD_LAYOUT_PRESETS,
   CARD_STYLE_PRESETS,
   DASHBOARD_STYLE_PRESETS,
   DASHBOARD_TUNING_CONTROLS,
   DEFAULT_VISUAL_STYLE_SETTINGS,
   GAUGE_STYLE_PRESETS,
+  LIQUID_SHAPE_PRESETS,
+  LIQUID_TUNING_CONTROLS,
   MARQUEE_PALETTE_PRESETS,
   MARQUEE_STYLE_PRESETS,
   RADAR_LATENCY_MAX_MAX_MS,
@@ -88,6 +91,7 @@ import {
   RADAR_LATENCY_MAX_STEP_MS,
   VISUAL_COLOR_CONTROLS,
   normalizeVisualStyleSettings,
+  patchLiquidDashboardSetting,
   patchDashboardSetting,
   serializeVisualStyleSettings,
   type VisualStyleSettings,
@@ -339,6 +343,32 @@ function applyClientAssignment(
   return next;
 }
 
+function applyAllClientsToTask(
+  bindings: HomepagePingTaskBindings,
+  taskId: number,
+  clientUuids: string[],
+) {
+  const taskKey = String(taskId);
+  const allClients = Array.from(new Set(clientUuids.filter(Boolean))).sort((left, right) =>
+    left.localeCompare(right),
+  );
+  if (allClients.length === 0) return pruneBindings(bindings);
+
+  const allClientSet = new Set(allClients);
+  const next: HomepagePingTaskBindings = {};
+
+  for (const [currentTaskId, clients] of Object.entries(pruneBindings(bindings))) {
+    if (currentTaskId === taskKey) continue;
+    const filtered = clients.filter((uuid) => !allClientSet.has(uuid));
+    if (filtered.length > 0) {
+      next[currentTaskId] = filtered;
+    }
+  }
+
+  next[taskKey] = allClients;
+  return pruneBindings(next);
+}
+
 export function ThemeManage() {
   const { data: config, isLoading: configLoading } = usePublicConfig();
   const backgroundFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -355,6 +385,7 @@ export function ThemeManage() {
   const [draftNodeSort, setDraftNodeSort] =
     useState<HomepageNodeSortSettings>(DEFAULT_HOMEPAGE_NODE_SORT);
   const [draggingNodeUuid, setDraggingNodeUuid] = useState<string | null>(null);
+  const [orderListExpanded, setOrderListExpanded] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
   const [nodeSearch, setNodeSearch] = useState("");
@@ -439,6 +470,10 @@ export function ThemeManage() {
 
   const sortedTasks = useMemo(() => sortTasks(pingTasks ?? []), [pingTasks]);
   const sortedClients = useMemo(() => sortClients(adminClients ?? []), [adminClients]);
+  const allClientUuids = useMemo(
+    () => sortedClients.map((client) => client.uuid),
+    [sortedClients],
+  );
   const clientsById = useMemo(
     () => new Map(sortedClients.map((client) => [client.uuid, client])),
     [sortedClients],
@@ -618,7 +653,11 @@ export function ThemeManage() {
     setMessage(null);
   };
   const activeDraftDashboardStyle =
-    draftVisualStyle.dashboardStyle === "bars" ? null : draftVisualStyle.dashboardStyle;
+    draftVisualStyle.dashboardStyle === "arc" ||
+    draftVisualStyle.dashboardStyle === "ring" ||
+    draftVisualStyle.dashboardStyle === "dial"
+      ? draftVisualStyle.dashboardStyle
+      : null;
 
   const updateDraftNodeSort = (patch: Partial<HomepageNodeSortSettings>) => {
     setDraftNodeSort((current) =>
@@ -756,6 +795,7 @@ export function ThemeManage() {
   const resetNodeOrder = () => {
     setDraftNodeOrder([]);
     setDraggingNodeUuid(null);
+    setOrderListExpanded(false);
     setMessage(null);
   };
 
@@ -827,6 +867,7 @@ export function ThemeManage() {
     setDraftNodeOrder(sourceNodeOrder);
     setDraftNodeSort(sourceNodeSort);
     setDraggingNodeUuid(null);
+    setOrderListExpanded(false);
     setMessage(null);
     setError(null);
   };
@@ -948,6 +989,27 @@ export function ThemeManage() {
       >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="grid gap-4">
+            <div className="surface-inset p-4">
+              <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                <Grid2X2 size={14} />
+                <span>卡片形态</span>
+              </div>
+              <div className="visual-style-preset-list is-grid is-card-layout">
+                {CARD_LAYOUT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="visual-style-preset"
+                    data-active={draftVisualStyle.cardLayout === preset.id ? "true" : "false"}
+                    onClick={() => updateDraftVisualStyle({ cardLayout: preset.id })}
+                  >
+                    <span className="visual-style-preset-name">{preset.label}</span>
+                    <span className="visual-style-preset-copy">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="surface-inset p-4">
               <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
                 <Layers size={14} />
@@ -1079,6 +1141,95 @@ export function ThemeManage() {
                       );
                     },
                   )}
+                </div>
+              )}
+              {draftVisualStyle.dashboardStyle === "liquid" && (
+                <div className="mt-4 grid gap-3 border-t border-[var(--hairline)] pt-4">
+                  <div className="text-[12px] font-semibold text-[var(--text-secondary)]">
+                    液位形态
+                  </div>
+                  <div className="visual-style-preset-list is-grid is-liquid-shape">
+                    {LIQUID_SHAPE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className="visual-style-preset"
+                        data-active={
+                          draftVisualStyle.dashboardSettings.liquid.shape === preset.id
+                            ? "true"
+                            : "false"
+                        }
+                        onClick={() =>
+                          updateDraftVisualStyle({
+                            dashboardSettings: patchLiquidDashboardSetting(
+                              draftVisualStyle.dashboardSettings,
+                              "shape",
+                              preset.id,
+                            ),
+                          })
+                        }
+                      >
+                        <span className="visual-style-preset-name">
+                          {preset.label}
+                        </span>
+                        <span className="visual-style-preset-copy">
+                          {preset.description}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[12px] font-semibold text-[var(--text-secondary)]">
+                    液位细节
+                  </div>
+                  <label className="gradient-range-control !mt-0">
+                    <span>
+                      <span>延迟上限</span>
+                      <strong>{draftVisualStyle.radarLatencyMaxMs}ms</strong>
+                    </span>
+                    <input
+                      type="range"
+                      min={RADAR_LATENCY_MAX_MIN_MS}
+                      max={RADAR_LATENCY_MAX_MAX_MS}
+                      step={RADAR_LATENCY_MAX_STEP_MS}
+                      value={draftVisualStyle.radarLatencyMaxMs}
+                      onChange={(event) =>
+                        updateDraftVisualStyle({
+                          radarLatencyMaxMs: Number(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                  {LIQUID_TUNING_CONTROLS.map(({ key, label, max = 100 }) => {
+                    const value = Number(
+                      draftVisualStyle.dashboardSettings.liquid[
+                        key as keyof typeof draftVisualStyle.dashboardSettings.liquid
+                      ],
+                    );
+
+                    return (
+                      <label key={key} className="gradient-range-control !mt-0">
+                        <span>
+                          <span>{label}</span>
+                          <strong>{value}%</strong>
+                        </span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={max}
+                          value={value}
+                          onChange={(event) =>
+                            updateDraftVisualStyle({
+                              dashboardSettings: patchLiquidDashboardSetting(
+                                draftVisualStyle.dashboardSettings,
+                                key,
+                                Number(event.target.value),
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    );
+                  })}
                 </div>
               )}
               {draftVisualStyle.dashboardStyle === "bars" && (
@@ -1234,7 +1385,9 @@ export function ThemeManage() {
           <div
             className="visual-style-preview surface-inset"
             data-card-style={draftVisualStyle.cardStyle}
+            data-card-layout={draftVisualStyle.cardLayout}
             data-dashboard-style={draftVisualStyle.dashboardStyle}
+            data-liquid-shape={draftVisualStyle.dashboardSettings.liquid.shape}
             data-marquee-style={draftVisualStyle.marqueeStyle.shape}
             style={
               (() => {
@@ -1256,6 +1409,12 @@ export function ThemeManage() {
             <div className="visual-style-preview-head">
               <span>预览</span>
               <span>
+                {
+                  CARD_LAYOUT_PRESETS.find(
+                    (preset) => preset.id === draftVisualStyle.cardLayout,
+                  )?.label
+                }
+                {" / "}
                 {
                   CARD_STYLE_PRESETS.find(
                     (preset) => preset.id === draftVisualStyle.cardStyle,
@@ -1633,142 +1792,171 @@ export function ThemeManage() {
             )}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-            <label className="surface-inset flex items-center gap-2 px-3 py-2">
-              <Search size={14} className="text-[var(--text-tertiary)]" />
-              <input
-                value={orderSearch}
-                onChange={(event) => setOrderSearch(event.target.value)}
-                placeholder="搜索服务器名称 / UUID / 分组 / 地区"
-                className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-[var(--text-tertiary)]"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={resetNodeOrder}
-              disabled={draftNodeOrderSerialized === "[]" || saving}
-              className="theme-manage-button"
-            >
-              <RefreshCw size={14} />
-              <span>恢复默认排序</span>
-            </button>
+          <div className="surface-inset flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                <ListOrdered size={14} />
+                <span>自定义服务器顺序</span>
+              </div>
+              <div className="mt-1 text-[12px] text-[var(--text-tertiary)]">
+                默认收起服务器列表，展开后可搜索、拖拽或用按钮调整顺序
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="rounded-full border border-[var(--hairline)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)]">
+                {clientsLoading ? "载入中" : `${effectiveNodeOrder.length} 台`}
+              </span>
+              <button
+                type="button"
+                onClick={resetNodeOrder}
+                disabled={draftNodeOrderSerialized === "[]" || saving}
+                className="theme-manage-button is-compact"
+              >
+                <RefreshCw size={13} />
+                <span>恢复默认排序</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrderListExpanded((expanded) => !expanded)}
+                disabled={clientsLoading}
+                className="theme-manage-button is-compact"
+                aria-expanded={orderListExpanded}
+              >
+                {orderListExpanded ? <ChevronsUp size={13} /> : <ChevronsDown size={13} />}
+                <span>{orderListExpanded ? "收起列表" : "展开编辑"}</span>
+              </button>
+            </div>
           </div>
 
-          {clientsLoading && (
-            <div className="flex min-h-[20vh] items-center justify-center">
-              <Spinner size={24} />
-            </div>
-          )}
+          {orderListExpanded && (
+            <>
+              <label className="surface-inset flex items-center gap-2 px-3 py-2">
+                <Search size={14} className="text-[var(--text-tertiary)]" />
+                <input
+                  value={orderSearch}
+                  onChange={(event) => setOrderSearch(event.target.value)}
+                  placeholder="搜索服务器名称 / UUID / 分组 / 地区"
+                  className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-[var(--text-tertiary)]"
+                />
+              </label>
 
-          {noClientsYet && (
-            <div className="theme-manage-empty-state">
-              <span>当前还没有可排序的服务器。</span>
-              <a href="/admin/client" className="theme-manage-inline-link">
-                前往后台添加服务器
-              </a>
-            </div>
-          )}
+              {clientsLoading && (
+                <div className="flex min-h-[20vh] items-center justify-center">
+                  <Spinner size={24} />
+                </div>
+              )}
 
-          {noFilteredOrderMatch && (
-            <div className="surface-inset px-4 py-5 text-[13px] text-[var(--text-secondary)]">
-              没有匹配的服务器。
-            </div>
-          )}
+              {noClientsYet && (
+                <div className="theme-manage-empty-state">
+                  <span>当前还没有可排序的服务器。</span>
+                  <a href="/admin/client" className="theme-manage-inline-link">
+                    前往后台添加服务器
+                  </a>
+                </div>
+              )}
 
-          {!clientsLoading && !noClientsYet && !noFilteredOrderMatch && (
-            <div className="grid gap-2">
-              {visibleOrderClients.map((client) => {
-                const orderIndex = orderIndexByUuid.get(client.uuid) ?? -1;
-                const isFirst = orderIndex <= 0;
-                const isLast = orderIndex >= effectiveNodeOrder.length - 1;
-                const subtitle = [client.group, client.region, client.uuid]
-                  .filter(Boolean)
-                  .join(" · ");
+              {noFilteredOrderMatch && (
+                <div className="surface-inset px-4 py-5 text-[13px] text-[var(--text-secondary)]">
+                  没有匹配的服务器。
+                </div>
+              )}
 
-                return (
-                  <div
-                    key={client.uuid}
-                    draggable={!saving}
-                    onDragStart={(event) => handleNodeOrderDragStart(event, client.uuid)}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(event) => handleNodeOrderDrop(event, client.uuid)}
-                    onDragEnd={() => setDraggingNodeUuid(null)}
-                    className={clsx(
-                      "surface-inset flex flex-wrap items-center gap-3 px-3 py-3 transition-opacity",
-                      !saving && "cursor-grab active:cursor-grabbing",
-                      draggingNodeUuid === client.uuid && "opacity-55",
-                    )}
-                  >
-                    <div
-                      className="grid h-9 w-7 shrink-0 place-items-center text-[var(--text-tertiary)]"
-                      title="拖拽排序"
-                      aria-hidden
-                    >
-                      <GripVertical size={16} />
-                    </div>
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[var(--hairline)] bg-[var(--surface)] text-[12px] font-semibold text-[var(--text-tertiary)]">
-                      {orderIndex + 1}
-                    </div>
-                    <div className="min-w-0 flex flex-1 items-center gap-3">
-                      <Flag region={client.region} size={18} />
-                      <div className="min-w-0">
-                        <div className="truncate text-[13px] font-semibold text-[var(--text-primary)]">
-                          {client.name || client.uuid}
+              {!clientsLoading && !noClientsYet && !noFilteredOrderMatch && (
+                <div className="grid gap-2">
+                  {visibleOrderClients.map((client) => {
+                    const orderIndex = orderIndexByUuid.get(client.uuid) ?? -1;
+                    const isFirst = orderIndex <= 0;
+                    const isLast = orderIndex >= effectiveNodeOrder.length - 1;
+                    const subtitle = [client.group, client.region, client.uuid]
+                      .filter(Boolean)
+                      .join(" · ");
+
+                    return (
+                      <div
+                        key={client.uuid}
+                        draggable={!saving}
+                        onDragStart={(event) => handleNodeOrderDragStart(event, client.uuid)}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={(event) => handleNodeOrderDrop(event, client.uuid)}
+                        onDragEnd={() => setDraggingNodeUuid(null)}
+                        className={clsx(
+                          "surface-inset flex flex-wrap items-center gap-3 px-3 py-3 transition-opacity",
+                          !saving && "cursor-grab active:cursor-grabbing",
+                          draggingNodeUuid === client.uuid && "opacity-55",
+                        )}
+                      >
+                        <div
+                          className="grid h-9 w-7 shrink-0 place-items-center text-[var(--text-tertiary)]"
+                          title="拖拽排序"
+                          aria-hidden
+                        >
+                          <GripVertical size={16} />
                         </div>
-                        <div className="mt-1 truncate text-[11px] text-[var(--text-tertiary)]">
-                          {subtitle || "未设置分组"}
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[var(--hairline)] bg-[var(--surface)] text-[12px] font-semibold text-[var(--text-tertiary)]">
+                          {orderIndex + 1}
+                        </div>
+                        <div className="min-w-0 flex flex-1 items-center gap-3">
+                          <Flag region={client.region} size={18} />
+                          <div className="min-w-0">
+                            <div className="truncate text-[13px] font-semibold text-[var(--text-primary)]">
+                              {client.name || client.uuid}
+                            </div>
+                            <div className="mt-1 truncate text-[11px] text-[var(--text-tertiary)]">
+                              {subtitle || "未设置分组"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            className="theme-manage-button is-compact"
+                            onClick={() => moveNodeOrder(client.uuid, 0)}
+                            disabled={isFirst}
+                            aria-label={`置顶 ${client.name || client.uuid}`}
+                            title="置顶"
+                          >
+                            <ChevronsUp size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="theme-manage-button is-compact"
+                            onClick={() => moveNodeOrder(client.uuid, orderIndex - 1)}
+                            disabled={isFirst}
+                            aria-label={`上移 ${client.name || client.uuid}`}
+                            title="上移"
+                          >
+                            <ArrowUp size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="theme-manage-button is-compact"
+                            onClick={() => moveNodeOrder(client.uuid, orderIndex + 1)}
+                            disabled={isLast}
+                            aria-label={`下移 ${client.name || client.uuid}`}
+                            title="下移"
+                          >
+                            <ArrowDown size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="theme-manage-button is-compact"
+                            onClick={() => moveNodeOrder(client.uuid, effectiveNodeOrder.length - 1)}
+                            disabled={isLast}
+                            aria-label={`置底 ${client.name || client.uuid}`}
+                            title="置底"
+                          >
+                            <ChevronsDown size={13} />
+                          </button>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        className="theme-manage-button is-compact"
-                        onClick={() => moveNodeOrder(client.uuid, 0)}
-                        disabled={isFirst}
-                        aria-label={`置顶 ${client.name || client.uuid}`}
-                        title="置顶"
-                      >
-                        <ChevronsUp size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        className="theme-manage-button is-compact"
-                        onClick={() => moveNodeOrder(client.uuid, orderIndex - 1)}
-                        disabled={isFirst}
-                        aria-label={`上移 ${client.name || client.uuid}`}
-                        title="上移"
-                      >
-                        <ArrowUp size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        className="theme-manage-button is-compact"
-                        onClick={() => moveNodeOrder(client.uuid, orderIndex + 1)}
-                        disabled={isLast}
-                        aria-label={`下移 ${client.name || client.uuid}`}
-                        title="下移"
-                      >
-                        <ArrowDown size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        className="theme-manage-button is-compact"
-                        onClick={() => moveNodeOrder(client.uuid, effectiveNodeOrder.length - 1)}
-                        disabled={isLast}
-                        aria-label={`置底 ${client.name || client.uuid}`}
-                        title="置底"
-                      >
-                        <ChevronsDown size={13} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </InstancePanel>
@@ -2147,8 +2335,11 @@ export function ThemeManage() {
             filteredTasks.map((task) => {
               const assigned = draftBindings[String(task.id)] ?? [];
               const isExpanded = expandedTaskId === task.id;
-              const assignedSet = isExpanded ? new Set(assigned) : null;
+              const assignedSet = new Set(assigned);
               const assignedSummary = summarizeNodes(assigned, clientsById);
+              const allClientsAssigned =
+                allClientUuids.length > 0 &&
+                allClientUuids.every((uuid) => assignedSet.has(uuid));
               return (
                 <section key={task.id} className="surface-inset px-4 py-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2183,6 +2374,24 @@ export function ThemeManage() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraftBindings((prev) =>
+                            applyAllClientsToTask(prev, task.id, allClientUuids),
+                          );
+                          setMessage(null);
+                        }}
+                        disabled={allClientUuids.length === 0 || allClientsAssigned}
+                        className="theme-manage-button is-compact"
+                        title={
+                          allClientsAssigned
+                            ? "所有服务器已经绑定到此任务"
+                            : "将所有服务器绑定到此 Ping 任务，并从其他任务移除"
+                        }
+                      >
+                        应用全部节点
+                      </button>
                       {assigned.length > 0 && (
                         <button
                           type="button"
@@ -2225,7 +2434,7 @@ export function ThemeManage() {
 
                       <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                         {visibleClients.map((client) => {
-                          const checked = assignedSet?.has(client.uuid) ?? false;
+                          const checked = assignedSet.has(client.uuid);
                           const subtitle = [client.group, client.uuid].filter(Boolean).join(" · ");
                           return (
                             <label

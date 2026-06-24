@@ -1,4 +1,4 @@
-import { memo, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   Cpu,
@@ -41,11 +41,16 @@ import { clsx } from "clsx";
 import type { PingOverviewBucket, TrafficTrendSample } from "@/types/komari";
 import type { TrafficRateDisplay } from "@/utils/format";
 import type {
+  CardLayoutId,
   DashboardSettings,
   DashboardStylePresetId,
   GaugeStylePresetId,
+  LiquidDashboardSettings,
+  LiquidShapeId,
   MarqueeStyleSettings,
 } from "@/hooks/useVisualStyle";
+
+type GaugeDashboardStyleId = Exclude<DashboardStylePresetId, "bars" | "liquid">;
 
 function buildSubtitle(parts: Array<string | null | undefined>) {
   return parts
@@ -129,7 +134,7 @@ function dashboardMotionStyle(value: number, transitionMin: number, transitionMa
 }
 
 function dashboardGaugePreset(
-  variant: Exclude<DashboardStylePresetId, "bars">,
+  variant: GaugeDashboardStyleId,
   settings: DashboardSettings,
 ): GaugeStylePresetId {
   return settings[variant].gaugeStyle;
@@ -197,7 +202,7 @@ function arcPoint(percent: number, radius = 46) {
 }
 
 function gaugeHeadPoint(
-  variant: Exclude<DashboardStylePresetId, "bars">,
+  variant: GaugeDashboardStyleId,
   percent: number,
   radius?: number,
 ) {
@@ -229,7 +234,7 @@ function renderArcPath(className: string, style?: CSSProperties) {
 }
 
 function renderGaugePath(
-  variant: Exclude<DashboardStylePresetId, "bars">,
+  variant: GaugeDashboardStyleId,
   className: string,
   style?: CSSProperties,
   radius = 38,
@@ -240,7 +245,7 @@ function renderGaugePath(
 }
 
 function renderGaugeBackArt(
-  variant: Exclude<DashboardStylePresetId, "bars">,
+  variant: GaugeDashboardStyleId,
   gaugeStyle: GaugeStylePresetId,
   percent: number,
 ) {
@@ -331,7 +336,7 @@ function renderGaugeBackArt(
 }
 
 function renderCircuitArt(
-  variant: Exclude<DashboardStylePresetId, "bars">,
+  variant: GaugeDashboardStyleId,
 ) {
   if (variant === "ring") {
     return (
@@ -367,7 +372,7 @@ function renderCircuitArt(
 }
 
 function renderWaveArt(
-  variant: Exclude<DashboardStylePresetId, "bars">,
+  variant: GaugeDashboardStyleId,
 ) {
   if (variant === "ring") {
     return (
@@ -399,7 +404,7 @@ function renderWaveArt(
 }
 
 function renderGaugeFrontArt(
-  variant: Exclude<DashboardStylePresetId, "bars">,
+  variant: GaugeDashboardStyleId,
   gaugeStyle: GaugeStylePresetId,
   percent: number,
 ) {
@@ -445,7 +450,7 @@ function scalePercentLegacy(value: number, min: number, max: number) {
 }
 
 function dashboardGaugeStyle(
-  variant: Exclude<DashboardStylePresetId, "bars">,
+  variant: GaugeDashboardStyleId,
   settings: DashboardSettings,
 ) {
   if (variant === "ring") {
@@ -492,8 +497,31 @@ function dashboardGaugeStyle(
   } as CSSProperties;
 }
 
+function liquidDashboardStyle(settings: LiquidDashboardSettings) {
+  return {
+    "--liquid-wave-scale": scalePercentLegacy(settings.wave, 0.45, 1.55).toFixed(3),
+    "--liquid-glass-opacity": scalePercentLegacy(settings.glass, 0.24, 0.88).toFixed(3),
+    "--liquid-glow-extra": scaleBoostedPercent(settings.glow, 0, 0.16, 0.38).toFixed(3),
+    "--liquid-bottom-mix": `${Math.round(scaleBoostedPercent(settings.glow, 7, 12, 19))}%`,
+    "--liquid-shadow-mix": `${Math.round(scaleBoostedPercent(settings.glow, 52, 68, 88))}%`,
+    "--liquid-svg-glow-mix": `${Math.round(scaleBoostedPercent(settings.glow, 18, 34, 58))}%`,
+    "--liquid-fill-opacity": scaleBoostedPercent(settings.glow, 0.62, 0.78, 0.96).toFixed(3),
+    "--liquid-wave-opacity": scaleBoostedPercent(settings.glow, 0.72, 0.86, 0.98).toFixed(3),
+    "--liquid-shine-opacity": scalePercentLegacy(settings.glass, 0.08, 0.28).toFixed(3),
+    "--liquid-segment-opacity": scalePercentLegacy(settings.glass, 0.18, 0.56).toFixed(3),
+    "--liquid-texture-opacity": scalePercentLegacy(settings.texture, 0, 0.48).toFixed(3),
+  } as CSSProperties;
+}
+
+function getLiquidMotionMs(percent: number, settings: LiquidDashboardSettings) {
+  const base = scalePercent(percent, 5200, 1800);
+  const multiplier = scaleBoostedPercent(settings.motion, 1.35, 0.72, 0.42);
+  return Math.round(base * multiplier);
+}
+
 export const NodeCard = memo(function NodeCard({
   uuid,
+  cardLayout,
   visualRedrawKey,
   dashboardStyle,
   dashboardSettings,
@@ -501,6 +529,7 @@ export const NodeCard = memo(function NodeCard({
   marqueeStyle,
 }: {
   uuid: string;
+  cardLayout: CardLayoutId;
   visualRedrawKey: string;
   dashboardStyle: DashboardStylePresetId;
   dashboardSettings: DashboardSettings;
@@ -524,8 +553,8 @@ export const NodeCard = memo(function NodeCard({
   if (!node) {
     return (
       <div
-        className="server-card animate-pulse"
-        style={{ minHeight: 438 }}
+        className={clsx("server-card animate-pulse", cardLayout === "strip" && "is-strip-card")}
+        style={{ minHeight: cardLayout === "strip" ? 102 : 438 }}
         aria-busy
       />
     );
@@ -561,16 +590,198 @@ export const NodeCard = memo(function NodeCard({
   const hasHomepagePingBinding = ping.isAssigned;
   const isOnline = node.online === true;
   const isOffline = node.online === false;
-  const gaugeDashboardStyle = dashboardStyle === "bars" ? null : dashboardStyle;
+  const statusColor =
+    node.online == null
+      ? "var(--text-tertiary)"
+      : isOnline
+        ? "var(--status-online)"
+        : "var(--status-offline)";
+  const statusTitle = node.online == null ? "状态同步中" : isOnline ? "在线" : "离线";
+  const gaugeDashboardStyle: GaugeDashboardStyleId | null =
+    dashboardStyle === "arc" || dashboardStyle === "ring" || dashboardStyle === "dial"
+      ? dashboardStyle
+      : null;
+  const isDashboardCard = dashboardStyle !== "bars";
   const offlineFor = isOffline ? formatOfflineDuration(node.updatedAt) : null;
+
+  if (cardLayout === "strip") {
+    const latencyText =
+      ping.lastValue != null
+        ? `${Math.round(ping.lastValue)}ms`
+        : hasHomepagePingBinding
+          ? "无样本"
+          : "未配置";
+    const lossText =
+      ping.loss != null
+        ? `${ping.loss.toFixed(1)}%`
+        : hasHomepagePingBinding
+          ? "无样本"
+          : "未配置";
+
+    return (
+      <article
+        className={clsx("server-card is-strip-card", isOffline && "is-offline")}
+        data-appearance={resolvedAppearance}
+        data-dashboard-style={dashboardStyle}
+      >
+        {isOffline && (
+          <div className="offline-mask">
+            <span className="offline-badge" title={offlineFor?.full}>
+              <Power size={14} strokeWidth={2.2} />
+              <span className="offline-badge-copy">
+                <span>离线</span>
+                <span className="offline-badge-time">
+                  {offlineFor?.value}
+                  {offlineFor?.unit ? ` ${offlineFor.unit}` : ""}
+                </span>
+              </span>
+            </span>
+          </div>
+        )}
+
+        <div className="server-card-content strip-card-content">
+          <div className="strip-card-identity">
+            <div className="strip-card-title-row">
+              <Flag region={node.region} size={15} />
+              <Link
+                to={`/instance/${node.uuid}`}
+                className="server-card-title-link"
+                title={node.name}
+              >
+                {node.name}
+              </Link>
+              <span
+                className={clsx("server-card-online-dot", isOffline && "is-offline")}
+                style={{
+                  background: statusColor,
+                  boxShadow: `0 0 0 3px color-mix(in srgb, ${statusColor} 20%, transparent)`,
+                }}
+                title={statusTitle}
+              />
+              <Link
+                to={`/instance/${node.uuid}`}
+                className="server-card-detail-link"
+                title="查看详情"
+              >
+                <ExternalLink size={14} strokeWidth={2} />
+              </Link>
+            </div>
+            {subtitle && (
+              <p className="server-card-subtitle" title={subtitle}>
+                {subtitle}
+              </p>
+            )}
+            {footerTags.length > 0 && (
+              <div className="dstatus-tags-row strip-card-tags">
+                {footerTags.slice(0, 3).map((tag, i) => (
+                  <span
+                    key={`${tag.label}-${i}`}
+                    data-tag={tag.color}
+                    className="dstatus-tag-chip"
+                    style={{
+                      background: "var(--tag-bg)",
+                      color: "var(--tag-fg)",
+                    }}
+                    title={tag.label}
+                  >
+                    {tag.label}
+                  </span>
+                ))}
+                {footerTags.length > 3 && (
+                  <span className="dstatus-tag-more">+{footerTags.length - 3}</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="strip-card-metrics" aria-label="核心指标">
+            <StripMetric
+              icon={<Cpu size={12} strokeWidth={2} />}
+              label="CPU"
+              value={node.cpuPct.toFixed(0)}
+              unit="%"
+              detail={`${node.cpu_cores || 0} 核`}
+              fraction={node.cpuPct / 100}
+              color="var(--ys-metric-cpu, var(--progress-cpu))"
+            />
+            <StripMetric
+              icon={<MemoryStick size={12} strokeWidth={2} />}
+              label="内存"
+              value={node.ramPct.toFixed(0)}
+              unit="%"
+              detail={`${formatBytes(node.ramUsed)} / ${formatBytes(node.ramTotal)}`}
+              fraction={node.ramPct / 100}
+              color="var(--ys-metric-memory, var(--progress-memory))"
+            />
+            <StripMetric
+              icon={<HardDrive size={12} strokeWidth={2} />}
+              label="硬盘"
+              value={node.diskPct.toFixed(0)}
+              unit="%"
+              detail={`${formatBytes(node.diskUsed)} / ${formatBytes(node.diskTotal)}`}
+              fraction={node.diskPct / 100}
+              color="var(--ys-metric-disk, var(--progress-disk))"
+            />
+            <StripMetric
+              icon={<Gauge size={12} strokeWidth={2} />}
+              label="负载"
+              value={node.load1.toFixed(2)}
+              detail={`${node.load1.toFixed(2)} / ${loadBaseline}`}
+              fraction={loadFraction}
+              color="var(--ys-metric-load, var(--progress-cpu))"
+            />
+          </div>
+
+          <div className="strip-card-telemetry" aria-label="网络与状态">
+            <StripStat
+              icon={<ArrowUp size={12} strokeWidth={2.4} />}
+              label="上行"
+              value={`${upRate.value} ${upRate.unit}`}
+              color="var(--ys-marquee-up, var(--progress-cpu))"
+            />
+            <StripStat
+              icon={<ArrowDown size={12} strokeWidth={2.4} />}
+              label="下行"
+              value={`${downRate.value} ${downRate.unit}`}
+              color="var(--ys-marquee-down, var(--status-success))"
+            />
+            <StripStat
+              icon={<Clock3 size={12} strokeWidth={2} />}
+              label="延迟"
+              value={latencyText}
+              color={latencyTone}
+            />
+            <StripStat
+              icon={<Unplug size={12} strokeWidth={2} />}
+              label="丢包"
+              value={lossText}
+              color={lossTone}
+            />
+            <StripStat
+              icon={<Calendar size={12} strokeWidth={2} />}
+              label="到期"
+              value={`${expire.value}${expire.unit ?? ""}`}
+              color={getExpireTextColor(node.expired_at)}
+            />
+            <StripStat
+              icon={<RefreshCw size={12} strokeWidth={2} />}
+              label="在线"
+              value={`${uptime.value}${uptime.unit ?? ""}`}
+              color="var(--progress-cpu)"
+            />
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article
       className={clsx(
         "server-card",
         isOffline && "is-offline",
-        gaugeDashboardStyle && "is-dashboard-card",
-        gaugeDashboardStyle && `is-${gaugeDashboardStyle}-dashboard`,
+        isDashboardCard && "is-dashboard-card",
+        isDashboardCard && `is-${dashboardStyle}-dashboard`,
       )}
       data-appearance={resolvedAppearance}
       data-dashboard-style={dashboardStyle}
@@ -605,21 +816,10 @@ export const NodeCard = memo(function NodeCard({
               <span
                 className={clsx("server-card-online-dot", isOffline && "is-offline")}
                 style={{
-                  background:
-                    node.online == null
-                      ? "var(--text-tertiary)"
-                      : isOnline
-                        ? "var(--status-online)"
-                        : "var(--status-offline)",
-                  boxShadow: `0 0 0 3px color-mix(in srgb, ${
-                    node.online == null
-                      ? "var(--text-tertiary)"
-                      : isOnline
-                        ? "var(--status-online)"
-                        : "var(--status-offline)"
-                  } 20%, transparent)`,
+                  background: statusColor,
+                  boxShadow: `0 0 0 3px color-mix(in srgb, ${statusColor} 20%, transparent)`,
                 }}
-                title={node.online == null ? "状态同步中" : isOnline ? "在线" : "离线"}
+                title={statusTitle}
               />
             </div>
             {subtitle && (
@@ -637,7 +837,27 @@ export const NodeCard = memo(function NodeCard({
           </Link>
         </header>
 
-        {gaugeDashboardStyle ? (
+        {dashboardStyle === "liquid" ? (
+          <LiquidMetricPanel
+            settings={dashboardSettings.liquid}
+            cpuPct={node.cpuPct}
+            cpuCores={node.cpu_cores}
+            ramPct={node.ramPct}
+            ramUsed={node.ramUsed}
+            ramTotal={node.ramTotal}
+            diskPct={node.diskPct}
+            diskUsed={node.diskUsed}
+            diskTotal={node.diskTotal}
+            loadValue={node.load1}
+            loadFraction={loadFraction}
+            upRate={upRate}
+            downRate={downRate}
+            latency={ping.lastValue}
+            latencyMaxMs={radarLatencyMaxMs}
+            loss={ping.loss}
+            hasHomepagePingBinding={hasHomepagePingBinding}
+          />
+        ) : gaugeDashboardStyle ? (
           <RadarMetricPanel
             variant={gaugeDashboardStyle}
             settings={dashboardSettings}
@@ -881,6 +1101,454 @@ export const NodeCard = memo(function NodeCard({
   );
 });
 
+function LiquidMetricPanel({
+  settings,
+  cpuPct,
+  cpuCores,
+  ramPct,
+  ramUsed,
+  ramTotal,
+  diskPct,
+  diskUsed,
+  diskTotal,
+  loadValue,
+  loadFraction,
+  upRate,
+  downRate,
+  latency,
+  latencyMaxMs,
+  loss,
+  hasHomepagePingBinding,
+}: {
+  settings: LiquidDashboardSettings;
+  cpuPct: number;
+  cpuCores: number;
+  ramPct: number;
+  ramUsed: number;
+  ramTotal: number;
+  diskPct: number;
+  diskUsed: number;
+  diskTotal: number;
+  loadValue: number;
+  loadFraction: number;
+  upRate: TrafficRateDisplay;
+  downRate: TrafficRateDisplay;
+  latency: number | null;
+  latencyMaxMs: number;
+  loss: number | null;
+  hasHomepagePingBinding: boolean;
+}) {
+  const upLimit = getTrafficRadarLimit(upRate);
+  const downLimit = getTrafficRadarLimit(downRate);
+  const safeLatencyMax = Math.max(100, latencyMaxMs);
+  const waveScale = scalePercentLegacy(settings.wave, 0.45, 1.55);
+
+  return (
+    <div
+      className="liquid-metric-grid"
+      aria-label="液位容器信息展板"
+      data-liquid-shape={settings.shape}
+      style={liquidDashboardStyle(settings)}
+    >
+      <LiquidGauge
+        shape={settings.shape}
+        waveScale={waveScale}
+        motionMs={getLiquidMotionMs(cpuPct, settings)}
+        icon={<Cpu size={13} strokeWidth={2} />}
+        label="CPU"
+        valueText={cpuPct.toFixed(0)}
+        unit="%"
+        fraction={cpuPct / 100}
+        color="var(--ys-metric-cpu, var(--progress-cpu))"
+        detailText={`${cpuCores || 0} 核`}
+      />
+      <LiquidGauge
+        shape={settings.shape}
+        waveScale={waveScale}
+        motionMs={getLiquidMotionMs(ramPct, settings)}
+        icon={<MemoryStick size={13} strokeWidth={2} />}
+        label="内存"
+        valueText={ramPct.toFixed(0)}
+        unit="%"
+        fraction={ramPct / 100}
+        color="var(--ys-metric-memory, var(--progress-memory))"
+        detailText={`${formatBytes(ramUsed)} / ${formatBytes(ramTotal)}`}
+      />
+      <LiquidGauge
+        shape={settings.shape}
+        waveScale={waveScale}
+        motionMs={getLiquidMotionMs(diskPct, settings)}
+        icon={<HardDrive size={13} strokeWidth={2} />}
+        label="硬盘"
+        valueText={diskPct.toFixed(0)}
+        unit="%"
+        fraction={diskPct / 100}
+        color="var(--ys-metric-disk, var(--progress-disk))"
+        detailText={`${formatBytes(diskUsed)} / ${formatBytes(diskTotal)}`}
+      />
+      <LiquidGauge
+        shape={settings.shape}
+        waveScale={waveScale}
+        motionMs={getLiquidMotionMs(loadFraction * 100, settings)}
+        icon={<Gauge size={13} strokeWidth={2} />}
+        label="负载"
+        valueText={loadValue.toFixed(2)}
+        fraction={loadFraction}
+        color="var(--ys-metric-load, var(--progress-cpu))"
+        detailText={loadValue.toFixed(2)}
+      />
+      <LiquidGauge
+        shape={settings.shape}
+        waveScale={waveScale}
+        motionMs={getLiquidMotionMs((upRate.bitsPerSec / upLimit.bitsPerSec) * 100, settings)}
+        icon={<ArrowUp size={13} strokeWidth={2.4} />}
+        label="上行"
+        valueText={upRate.value}
+        unit={upRate.unit}
+        fraction={upRate.bitsPerSec / upLimit.bitsPerSec}
+        color="var(--ys-marquee-up, var(--progress-cpu))"
+        limitLabel={`上限 ${upLimit.label}`}
+      />
+      <LiquidGauge
+        shape={settings.shape}
+        waveScale={waveScale}
+        motionMs={getLiquidMotionMs((downRate.bitsPerSec / downLimit.bitsPerSec) * 100, settings)}
+        icon={<ArrowDown size={13} strokeWidth={2.4} />}
+        label="下行"
+        valueText={downRate.value}
+        unit={downRate.unit}
+        fraction={downRate.bitsPerSec / downLimit.bitsPerSec}
+        color="var(--ys-marquee-down, var(--status-success))"
+        limitLabel={`上限 ${downLimit.label}`}
+      />
+      <LiquidGauge
+        shape={settings.shape}
+        waveScale={waveScale}
+        motionMs={getLiquidMotionMs(latency != null ? (latency / safeLatencyMax) * 100 : 0, settings)}
+        icon={<Clock3 size={13} strokeWidth={2} />}
+        label="延迟"
+        valueText={latency != null ? String(Math.round(latency)) : hasHomepagePingBinding ? "—" : "未配"}
+        unit={latency != null ? "ms" : undefined}
+        fraction={latency != null ? latency / safeLatencyMax : 0}
+        color="var(--ys-metric-latency, var(--status-online))"
+        limitLabel={`${safeLatencyMax}ms`}
+        empty={latency == null}
+      />
+      <LiquidGauge
+        shape={settings.shape}
+        waveScale={waveScale}
+        motionMs={getLiquidMotionMs(loss != null ? loss : 0, settings)}
+        icon={<Unplug size={13} strokeWidth={2} />}
+        label="丢包"
+        valueText={loss != null ? loss.toFixed(1) : hasHomepagePingBinding ? "—" : "未配"}
+        unit={loss != null ? "%" : undefined}
+        fraction={loss != null ? loss / 100 : 0}
+        color="var(--ys-metric-loss, var(--status-offline))"
+        limitLabel="100%"
+        empty={loss == null}
+        warning={Boolean(loss && loss > 0)}
+      />
+    </div>
+  );
+}
+
+function renderLiquidShape(shape: LiquidShapeId, className: string) {
+  if (shape === "capsule" || shape === "segmented") {
+    return <rect className={className} x="8" y="26" width="84" height="48" rx="24" />;
+  }
+  if (shape === "column") {
+    return <rect className={className} x="29" y="10" width="42" height="80" rx="16" />;
+  }
+  if (shape === "lens") {
+    return <ellipse className={className} cx="50" cy="50" rx="42" ry="28" />;
+  }
+  if (shape === "crystal") {
+    return (
+      <polygon
+        className={className}
+        points="50,8 82,26 82,70 50,92 18,70 18,26"
+      />
+    );
+  }
+  if (shape === "drop") {
+    return (
+      <path
+        className={className}
+        d="M50 8 C66 28 80 43 80 61 A30 30 0 1 1 20 61 C20 43 34 28 50 8 Z"
+      />
+    );
+  }
+  if (shape === "ring") {
+    return (
+      <path
+        className={className}
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M50 7 A43 43 0 1 0 50 93 A43 43 0 1 0 50 7 Z M50 28 A22 22 0 1 1 50 72 A22 22 0 1 1 50 28 Z"
+      />
+    );
+  }
+  return <circle className={className} cx="50" cy="50" r="38" />;
+}
+
+function renderLiquidShine(shape: LiquidShapeId) {
+  if (shape === "capsule" || shape === "segmented") {
+    return <ellipse className="liquid-gauge-shine" cx="35" cy="38" rx="18" ry="4.5" />;
+  }
+  if (shape === "column") {
+    return <ellipse className="liquid-gauge-shine" cx="42" cy="24" rx="9" ry="4" />;
+  }
+  if (shape === "lens") {
+    return <ellipse className="liquid-gauge-shine" cx="37" cy="38" rx="17" ry="4.5" />;
+  }
+  if (shape === "crystal") {
+    return <path className="liquid-gauge-shine" d="M35 27 L50 16 L64 27 L49 31 Z" />;
+  }
+  if (shape === "drop") {
+    return <ellipse className="liquid-gauge-shine" cx="39" cy="39" rx="11" ry="5" transform="rotate(-28 39 39)" />;
+  }
+  if (shape === "ring") {
+    return <path className="liquid-gauge-shine" d="M26 38 A28 28 0 0 1 47 21" />;
+  }
+  return <ellipse className="liquid-gauge-shine" cx="38" cy="31" rx="13" ry="5" />;
+}
+
+function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
+  if (shape === "sphere") {
+    return (
+      <g className="liquid-gauge-tech is-sphere">
+        <ellipse className="liquid-tech-orbit is-a" cx="50" cy="50" rx="46" ry="16" />
+        <ellipse className="liquid-tech-orbit is-b" cx="50" cy="50" rx="18" ry="43" />
+        <path className="liquid-tech-sweep" d="M50 50 L50 12 A38 38 0 0 1 86 50 Z" />
+        <circle className="liquid-tech-node is-one" cx="84" cy="50" r="2.5" />
+        <circle className="liquid-tech-node is-two" cx="24" cy="34" r="1.8" />
+      </g>
+    );
+  }
+
+  if (shape === "capsule") {
+    return (
+      <g className="liquid-gauge-tech is-capsule">
+        <line className="liquid-tech-rail" x1="16" y1="29" x2="84" y2="29" />
+        <line className="liquid-tech-rail is-bottom" x1="16" y1="71" x2="84" y2="71" />
+        <circle className="liquid-tech-packet is-one" cx="24" cy="29" r="2.4" />
+        <circle className="liquid-tech-packet is-two" cx="64" cy="71" r="2" />
+        <path className="liquid-tech-signal" d="M19 50 H31 L38 42 L48 58 L57 47 L66 50 H81" />
+      </g>
+    );
+  }
+
+  if (shape === "column") {
+    return (
+      <g className="liquid-gauge-tech is-column">
+        {[20, 32, 44, 56, 68, 80].map((y) => (
+          <line key={y} className="liquid-tech-tick" x1="22" y1={y} x2="29" y2={y} />
+        ))}
+        {[24, 40, 56, 72].map((y) => (
+          <line key={y} className="liquid-tech-tick is-right" x1="71" y1={y} x2="78" y2={y} />
+        ))}
+        <line className="liquid-tech-spine" x1="50" y1="17" x2="50" y2="84" />
+        <circle className="liquid-tech-packet is-one" cx="50" cy="76" r="2.4" />
+      </g>
+    );
+  }
+
+  if (shape === "lens") {
+    return (
+      <g className="liquid-gauge-tech is-lens">
+        <path className="liquid-tech-grid" d="M14 50 H86 M24 35 H76 M24 65 H76 M50 23 V77 M36 29 C42 43 42 57 36 71 M64 29 C58 43 58 57 64 71" />
+        <circle className="liquid-tech-reticle" cx="50" cy="50" r="17" />
+        <path className="liquid-tech-sweep" d="M50 50 L50 23 A27 27 0 0 1 76 50 Z" />
+      </g>
+    );
+  }
+
+  if (shape === "segmented") {
+    const activeSegments = Math.max(1, Math.ceil((percent / 100) * 6));
+    return (
+      <g className="liquid-gauge-tech is-segmented">
+        {[0, 1, 2, 3, 4, 5].map((index) => (
+          <rect
+            key={index}
+            className="liquid-tech-cell"
+            x={16 + index * 11}
+            y="33"
+            width="7"
+            height="34"
+            rx="3"
+            style={{ opacity: index < activeSegments ? 0.76 : 0.18 }}
+          />
+        ))}
+        <line className="liquid-tech-rail" x1="16" y1="50" x2="84" y2="50" />
+        <circle className="liquid-tech-packet is-one" cx="18" cy="50" r="2" />
+      </g>
+    );
+  }
+
+  if (shape === "crystal") {
+    return (
+      <g className="liquid-gauge-tech is-crystal">
+        <path className="liquid-tech-facet" d="M50 8 L50 92 M18 26 L82 70 M82 26 L18 70 M31 19 L69 81 M69 19 L31 81" />
+        <polygon className="liquid-tech-core" points="50,24 67,36 64,62 50,75 36,62 33,36" />
+        <circle className="liquid-tech-node is-one" cx="50" cy="8" r="2" />
+        <circle className="liquid-tech-node is-two" cx="82" cy="70" r="1.8" />
+      </g>
+    );
+  }
+
+  if (shape === "drop") {
+    return (
+      <g className="liquid-gauge-tech is-drop">
+        <ellipse className="liquid-tech-orbit is-a" cx="50" cy="58" rx="38" ry="10" />
+        <ellipse className="liquid-tech-orbit is-b" cx="50" cy="56" rx="19" ry="37" />
+        <path className="liquid-tech-spark" d="M50 16 L55 35 L72 41 L57 52 L59 72 L50 59 L41 72 L43 52 L28 41 L45 35 Z" />
+        <circle className="liquid-tech-packet is-one" cx="80" cy="58" r="2.2" />
+      </g>
+    );
+  }
+
+  return (
+    <g className="liquid-gauge-tech is-ring">
+      <circle className="liquid-tech-orbit is-a" cx="50" cy="50" r="43" pathLength={100} />
+      <circle className="liquid-tech-orbit is-b" cx="50" cy="50" r="29" pathLength={100} />
+      <path className="liquid-tech-signal" d="M50 12 L56 23 L50 34 L44 23 Z M78 50 L67 56 L56 50 L67 44 Z M50 88 L44 77 L50 66 L56 77 Z M22 50 L33 44 L44 50 L33 56 Z" />
+      <circle className="liquid-tech-node is-one" cx="50" cy="7" r="2.3" />
+      <circle className="liquid-tech-node is-two" cx="90" cy="50" r="1.8" />
+    </g>
+  );
+}
+
+function LiquidGauge({
+  shape,
+  waveScale,
+  motionMs,
+  icon,
+  label,
+  valueText,
+  unit,
+  fraction,
+  color,
+  limitLabel = "100%",
+  detailText,
+  empty = false,
+  warning = false,
+}: {
+  shape: LiquidShapeId;
+  waveScale: number;
+  motionMs: number;
+  icon: ReactNode;
+  label: string;
+  valueText: string;
+  unit?: string;
+  fraction: number;
+  color: string;
+  limitLabel?: string;
+  detailText?: string;
+  empty?: boolean;
+  warning?: boolean;
+}) {
+  const rawPercent = Math.round(clampFraction(fraction) * 100);
+  const visualPercent = empty ? 5 : Math.max(5, rawPercent);
+  const fillY = 88 - visualPercent * 0.76;
+  const waveBase = empty ? 1.8 : Math.min(7, 2.5 + rawPercent / 18);
+  const numericWaveAmp = waveBase * waveScale;
+  const realValue = detailText ?? `${valueText}${unit ? ` ${unit}` : ""}`;
+  const title = `${label} ${realValue} · ${rawPercent}% · ${limitLabel}`;
+  const clipId = useId().replace(/:/g, "");
+  const pressure = empty
+    ? "empty"
+    : warning || rawPercent >= 90
+      ? "critical"
+      : rawPercent >= 70
+        ? "high"
+        : rawPercent <= 12
+          ? "low"
+          : "normal";
+  const wavePath = [
+    `M -42 ${fillY.toFixed(2)}`,
+    `C -22 ${(fillY - numericWaveAmp).toFixed(2)} -2 ${(fillY + numericWaveAmp).toFixed(2)} 18 ${fillY.toFixed(2)}`,
+    `S 58 ${(fillY - numericWaveAmp).toFixed(2)} 78 ${fillY.toFixed(2)}`,
+    `S 118 ${(fillY + numericWaveAmp).toFixed(2)} 138 ${fillY.toFixed(2)}`,
+    "L 138 104 L -42 104 Z",
+  ].join(" ");
+  const wavePathAlt = [
+    `M -42 ${(fillY + 4).toFixed(2)}`,
+    `C -18 ${(fillY + numericWaveAmp + 4).toFixed(2)} 4 ${(fillY - numericWaveAmp + 4).toFixed(2)} 28 ${(fillY + 4).toFixed(2)}`,
+    `S 74 ${(fillY + numericWaveAmp + 4).toFixed(2)} 98 ${(fillY + 4).toFixed(2)}`,
+    `S 132 ${(fillY - numericWaveAmp + 4).toFixed(2)} 154 ${(fillY + 4).toFixed(2)}`,
+    "L 154 104 L -42 104 Z",
+  ].join(" ");
+
+  return (
+    <div
+      className={clsx("liquid-gauge", empty && "is-empty")}
+      data-pressure={pressure}
+      data-shape={shape}
+      style={
+        {
+          "--liquid-color": color,
+          "--liquid-fill-y": fillY.toFixed(2),
+          "--liquid-wave-ms": `${motionMs}ms`,
+          "--liquid-sweep-ms": `${Math.round(motionMs * 1.9)}ms`,
+          "--liquid-pulse-ms": `${Math.round(motionMs * 1.25)}ms`,
+          "--liquid-orbit-ms": `${Math.round(motionMs * 1.6)}ms`,
+          "--liquid-rail-ms": `${Math.round(motionMs * 0.9)}ms`,
+          "--liquid-spine-ms": `${Math.round(motionMs * 0.82)}ms`,
+          "--liquid-reticle-ms": `${Math.round(motionMs * 1.18)}ms`,
+          "--liquid-cell-ms": `${Math.round(motionMs * 1.14)}ms`,
+          "--liquid-drop-orbit-ms": `${Math.round(motionMs * 1.42)}ms`,
+          "--liquid-ring-node-ms": `${Math.round(motionMs * 1.4)}ms`,
+        } as CSSProperties
+      }
+      title={title}
+    >
+      <div className="liquid-gauge-head">
+        <span className="liquid-gauge-icon">{icon}</span>
+        <span>{label}</span>
+      </div>
+      <svg className="liquid-gauge-svg" viewBox="0 0 100 100" aria-hidden>
+        <defs>
+          <clipPath id={clipId}>
+            {renderLiquidShape(shape, "liquid-gauge-clip")}
+          </clipPath>
+        </defs>
+        {renderLiquidShape(shape, "liquid-gauge-vessel")}
+        <g clipPath={`url(#${clipId})`}>
+          <rect
+            className="liquid-gauge-fill"
+            x="12"
+            y={fillY}
+            width="76"
+            height={Math.max(0, 88 - fillY)}
+          />
+          <path className="liquid-gauge-wave is-back" d={wavePathAlt} />
+          <path className="liquid-gauge-wave" d={wavePath} />
+          <circle className="liquid-gauge-bubble is-one" cx="68" cy={Math.max(18, fillY + 16)} r="2.5" />
+          <circle className="liquid-gauge-bubble is-two" cx="34" cy={Math.max(24, fillY + 28)} r="1.9" />
+        </g>
+        {shape === "segmented" && (
+          <g className="liquid-gauge-segments">
+            {[24, 36, 48, 60, 72].map((x) => (
+              <line key={x} x1={x} y1="28" x2={x} y2="72" />
+            ))}
+          </g>
+        )}
+        {renderLiquidTechArt(shape, rawPercent)}
+        {shape === "ring" && <circle className="liquid-gauge-ring-core" cx="50" cy="50" r="22" />}
+        {renderLiquidShape(shape, "liquid-gauge-glass")}
+        {renderLiquidShine(shape)}
+      </svg>
+      <div className="liquid-gauge-value tabular">
+        <span>{rawPercent}</span>
+        <span className="liquid-gauge-unit">%</span>
+      </div>
+      <div className="liquid-gauge-foot">
+        <span>{realValue}</span>
+      </div>
+    </div>
+  );
+}
+
 function RadarMetricPanel({
   variant,
   settings,
@@ -901,7 +1569,7 @@ function RadarMetricPanel({
   loss,
   hasHomepagePingBinding,
 }: {
-  variant: Exclude<DashboardStylePresetId, "bars">;
+  variant: GaugeDashboardStyleId;
   settings: DashboardSettings;
   cpuPct: number;
   cpuCores: number;
@@ -1038,7 +1706,7 @@ function RadarGauge({
   detailText,
   empty = false,
 }: {
-  variant: Exclude<DashboardStylePresetId, "bars">;
+  variant: GaugeDashboardStyleId;
   gaugeStyle: GaugeStylePresetId;
   icon: ReactNode;
   label: string;
@@ -1319,6 +1987,77 @@ function GlobeArrow({
         />
       )}
     </span>
+  );
+}
+
+function StripMetric({
+  icon,
+  label,
+  value,
+  unit,
+  detail,
+  fraction,
+  color,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  unit?: string;
+  detail: string;
+  fraction: number;
+  color: string;
+}) {
+  const percent = `${Math.round(clampFraction(fraction) * 100)}%`;
+
+  return (
+    <div
+      className="strip-card-metric"
+      style={
+        {
+          "--strip-metric-color": color,
+          "--strip-metric-value": percent,
+        } as CSSProperties
+      }
+    >
+      <div className="strip-card-metric-head">
+        <span className="strip-card-metric-label">
+          {icon}
+          <span>{label}</span>
+        </span>
+        <span className="strip-card-metric-value tabular">
+          {value}
+          {unit && <span className="strip-card-metric-unit">{unit}</span>}
+        </span>
+      </div>
+      <div className="strip-card-metric-bar" aria-hidden />
+      <span className="strip-card-metric-detail" title={detail}>
+        {detail}
+      </span>
+    </div>
+  );
+}
+
+function StripStat({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  color: string;
+}) {
+  return (
+    <div className="strip-card-stat">
+      <span className="strip-card-stat-label">
+        {icon}
+        <span>{label}</span>
+      </span>
+      <span className="strip-card-stat-value tabular" style={{ color }}>
+        {value}
+      </span>
+    </div>
   );
 }
 

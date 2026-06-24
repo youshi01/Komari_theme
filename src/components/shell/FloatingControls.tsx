@@ -26,16 +26,20 @@ import {
   useGradientBackground,
 } from "@/hooks/useGradientBackground";
 import {
+  CARD_LAYOUT_PRESETS,
   CARD_STYLE_PRESETS,
   DASHBOARD_STYLE_PRESETS,
   DASHBOARD_TUNING_CONTROLS,
   GAUGE_STYLE_PRESETS,
+  LIQUID_SHAPE_PRESETS,
+  LIQUID_TUNING_CONTROLS,
   MARQUEE_PALETTE_PRESETS,
   MARQUEE_STYLE_PRESETS,
   RADAR_LATENCY_MAX_MAX_MS,
   RADAR_LATENCY_MAX_MIN_MS,
   RADAR_LATENCY_MAX_STEP_MS,
   VISUAL_COLOR_CONTROLS,
+  patchLiquidDashboardSetting,
   patchDashboardSetting,
   useVisualStyle,
 } from "@/hooks/useVisualStyle";
@@ -145,7 +149,11 @@ export function FloatingControls() {
       ? "先添加图片背景"
       : "先在主题设置启用图片背景";
   const activeDashboardStyle =
-    visualStyle.dashboardStyle === "bars" ? null : visualStyle.dashboardStyle;
+    visualStyle.dashboardStyle === "arc" ||
+    visualStyle.dashboardStyle === "ring" ||
+    visualStyle.dashboardStyle === "dial"
+      ? visualStyle.dashboardStyle
+      : null;
 
   useEffect(() => {
     if (!anyPanelOpen) return;
@@ -575,6 +583,22 @@ export function FloatingControls() {
 
             {visualStyleTab === "card" && (
               <div className="visual-style-section">
+                <div className="visual-style-section-title">卡片形态</div>
+                <div className="visual-style-preset-list is-card-layout">
+                  {CARD_LAYOUT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className="visual-style-preset"
+                      data-active={visualStyle.cardLayout === preset.id ? "true" : "false"}
+                      onClick={() => updateVisualStyle({ cardLayout: preset.id })}
+                    >
+                      <span className="visual-style-preset-name">{preset.label}</span>
+                      <span className="visual-style-preset-copy">{preset.description}</span>
+                    </button>
+                  ))}
+                </div>
+
                 <div className="visual-style-section-title">卡片外壳</div>
                 <div className="visual-style-preset-list">
                   {CARD_STYLE_PRESETS.map((preset) => (
@@ -685,6 +709,90 @@ export function FloatingControls() {
                             </label>
                           ))}
                         </div>
+                      </>
+                    ) : visualStyle.dashboardStyle === "liquid" ? (
+                      <>
+                        <div className="visual-style-section-title">液位形态</div>
+                        <div className="visual-style-preset-list is-liquid-shape">
+                          {LIQUID_SHAPE_PRESETS.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              className="visual-style-preset"
+                              data-active={
+                                visualStyle.dashboardSettings.liquid.shape === preset.id
+                                  ? "true"
+                                  : "false"
+                              }
+                              onClick={() =>
+                                updateVisualStyle({
+                                  dashboardSettings: patchLiquidDashboardSetting(
+                                    visualStyle.dashboardSettings,
+                                    "shape",
+                                    preset.id,
+                                  ),
+                                })
+                              }
+                            >
+                              <span className="visual-style-preset-name">
+                                {preset.label}
+                              </span>
+                              <span className="visual-style-preset-copy">
+                                {preset.description}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="visual-style-section-title">液位细节</div>
+                        <label className="gradient-range-control">
+                          <span>
+                            <span>延迟上限</span>
+                            <strong>{visualStyle.radarLatencyMaxMs}ms</strong>
+                          </span>
+                          <input
+                            type="range"
+                            min={RADAR_LATENCY_MAX_MIN_MS}
+                            max={RADAR_LATENCY_MAX_MAX_MS}
+                            step={RADAR_LATENCY_MAX_STEP_MS}
+                            value={visualStyle.radarLatencyMaxMs}
+                            onChange={(event) =>
+                              updateVisualStyle({
+                                radarLatencyMaxMs: Number(event.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        {LIQUID_TUNING_CONTROLS.map(({ key, label, max = 100 }) => {
+                          const value = Number(
+                            visualStyle.dashboardSettings.liquid[
+                              key as keyof typeof visualStyle.dashboardSettings.liquid
+                            ],
+                          );
+
+                          return (
+                            <label key={key} className="gradient-range-control">
+                              <span>
+                                <span>{label}</span>
+                                <strong>{value}%</strong>
+                              </span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={max}
+                                value={value}
+                                onChange={(event) =>
+                                  updateVisualStyle({
+                                    dashboardSettings: patchLiquidDashboardSetting(
+                                      visualStyle.dashboardSettings,
+                                      key,
+                                      Number(event.target.value),
+                                    ),
+                                  })
+                                }
+                              />
+                            </label>
+                          );
+                        })}
                       </>
                     ) : activeDashboardStyle ? (
                       <>

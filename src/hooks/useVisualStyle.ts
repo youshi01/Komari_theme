@@ -6,13 +6,16 @@ export type CardStylePresetId =
   | "glass"
   | "neon"
   | "soft"
-  | "minimal";
+  | "minimal"
+  | "crt";
+export type CardLayoutId = "square" | "strip";
 export type DashboardStylePresetId =
   | "bars"
   | "arc"
   | "ring"
-  | "dial";
-export type TunableDashboardStyleId = Exclude<DashboardStylePresetId, "bars">;
+  | "dial"
+  | "liquid";
+export type TunableDashboardStyleId = Exclude<DashboardStylePresetId, "bars" | "liquid">;
 export type GaugeStylePresetId =
   | "clean"
   | "neon"
@@ -41,6 +44,15 @@ export type MarqueeShapeId =
   | "neon"
   | "equalizer";
 export type MarqueeStylePresetId = MarqueeShapeId | "custom";
+export type LiquidShapeId =
+  | "sphere"
+  | "capsule"
+  | "column"
+  | "lens"
+  | "segmented"
+  | "crystal"
+  | "drop"
+  | "ring";
 export type VisualStyleSource = "local" | "global" | "default";
 
 export interface VisualMetricColors {
@@ -90,14 +102,25 @@ export interface DialDashboardSettings {
   motion: number;
 }
 
+export interface LiquidDashboardSettings {
+  shape: LiquidShapeId;
+  wave: number;
+  glass: number;
+  glow: number;
+  motion: number;
+  texture: number;
+}
+
 export interface DashboardSettings {
   arc: ArcDashboardSettings;
   ring: RingDashboardSettings;
   dial: DialDashboardSettings;
+  liquid: LiquidDashboardSettings;
 }
 
 export interface VisualStyleSettings {
   cardStyle: CardStylePresetId;
+  cardLayout: CardLayoutId;
   dashboardStyle: DashboardStylePresetId;
   dashboardSettings: DashboardSettings;
   radarLatencyMaxMs: number;
@@ -108,6 +131,12 @@ export interface VisualStyleSettings {
 
 export interface CardStylePreset {
   id: CardStylePresetId;
+  label: string;
+  description: string;
+}
+
+export interface CardLayoutPreset {
+  id: CardLayoutId;
   label: string;
   description: string;
 }
@@ -136,6 +165,12 @@ export interface MarqueeStylePreset {
   label: string;
   description: string;
   settings: MarqueeStyleSettings;
+}
+
+export interface LiquidShapePreset {
+  id: LiquidShapeId;
+  label: string;
+  description: string;
 }
 
 export interface DashboardTuningControl {
@@ -170,6 +205,24 @@ export const CARD_STYLE_PRESETS: CardStylePreset[] = [
     label: "极简白板",
     description: "少装饰、轻边框、好读数",
   },
+  {
+    id: "crt",
+    label: "复古 CRT",
+    description: "扫描线、暗角和荧光屏质感",
+  },
+];
+
+export const CARD_LAYOUT_PRESETS: CardLayoutPreset[] = [
+  {
+    id: "square",
+    label: "方型卡片",
+    description: "保留完整信息展板，适合展示更多状态细节。",
+  },
+  {
+    id: "strip",
+    label: "条形卡片",
+    description: "横向紧凑列表，适合服务器数量较多时快速扫读。",
+  },
 ];
 
 export const DASHBOARD_STYLE_PRESETS: DashboardStylePreset[] = [
@@ -192,6 +245,11 @@ export const DASHBOARD_STYLE_PRESETS: DashboardStylePreset[] = [
     id: "dial",
     label: "指针仪表",
     description: "用指针角度表达强弱，状态感更明显",
+  },
+  {
+    id: "liquid",
+    label: "液位容器",
+    description: "统一用水波液位展示所有实时指标",
   },
 ];
 
@@ -261,6 +319,57 @@ export const GAUGE_STYLE_PRESETS: GaugeStylePreset[] = [
     label: "断点扫描",
     description: "断点刻度加扫描拖尾，突出当前进度头",
   },
+];
+
+export const LIQUID_SHAPE_PRESETS: LiquidShapePreset[] = [
+  {
+    id: "sphere",
+    label: "水波圆球",
+    description: "经典透明球体，读数直观、适合默认使用",
+  },
+  {
+    id: "capsule",
+    label: "横向胶囊舱",
+    description: "长条圆角容器，速度和容量都有科技感",
+  },
+  {
+    id: "column",
+    label: "竖向液柱",
+    description: "量筒式能量柱，占比变化最清晰",
+  },
+  {
+    id: "lens",
+    label: "椭圆透镜",
+    description: "扁平玻璃透镜，更贴合紧凑卡片",
+  },
+  {
+    id: "segmented",
+    label: "分段胶囊",
+    description: "分格点亮与液面波动结合，监控感更强",
+  },
+  {
+    id: "crystal",
+    label: "六边晶核",
+    description: "硬朗多边形玻璃舱，偏科幻 HUD",
+  },
+  {
+    id: "drop",
+    label: "悬浮水滴",
+    description: "水滴形液体核心，低负载时更灵动",
+  },
+  {
+    id: "ring",
+    label: "环形液舱",
+    description: "圆环槽液位包围数值，和仪表风格呼应",
+  },
+];
+
+export const LIQUID_TUNING_CONTROLS: DashboardTuningControl[] = [
+  { key: "wave", label: "波浪高度" },
+  { key: "glass", label: "玻璃强度" },
+  { key: "glow", label: "光晕强度", max: 200 },
+  { key: "motion", label: "动效强度", max: 200 },
+  { key: "texture", label: "纹理强度" },
 ];
 
 export const DASHBOARD_TUNING_CONTROLS: Record<
@@ -489,9 +598,18 @@ export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
     glow: 36,
     motion: 48,
   },
+  liquid: {
+    shape: "sphere",
+    wave: 55,
+    glass: 58,
+    glow: 48,
+    motion: 54,
+    texture: 42,
+  },
 };
 export const DEFAULT_VISUAL_STYLE_SETTINGS: VisualStyleSettings = {
   cardStyle: "panel",
+  cardLayout: "square",
   dashboardStyle: "bars",
   dashboardSettings: DEFAULT_DASHBOARD_SETTINGS,
   radarLatencyMaxMs: 1000,
@@ -513,8 +631,13 @@ function isCardStyle(value: unknown): value is CardStylePresetId {
     value === "glass" ||
     value === "neon" ||
     value === "soft" ||
-    value === "minimal"
+    value === "minimal" ||
+    value === "crt"
   );
+}
+
+function isCardLayout(value: unknown): value is CardLayoutId {
+  return value === "square" || value === "strip";
 }
 
 function isDashboardStyle(value: unknown): value is DashboardStylePresetId {
@@ -522,7 +645,8 @@ function isDashboardStyle(value: unknown): value is DashboardStylePresetId {
     value === "bars" ||
     value === "arc" ||
     value === "ring" ||
-    value === "dial"
+    value === "dial" ||
+    value === "liquid"
   );
 }
 
@@ -567,6 +691,19 @@ function isMarqueeShape(value: unknown): value is MarqueeShapeId {
 
 function isMarqueeStyle(value: unknown): value is MarqueeStylePresetId {
   return isMarqueeShape(value) || value === "custom";
+}
+
+function isLiquidShape(value: unknown): value is LiquidShapeId {
+  return (
+    value === "sphere" ||
+    value === "capsule" ||
+    value === "column" ||
+    value === "lens" ||
+    value === "segmented" ||
+    value === "crystal" ||
+    value === "drop" ||
+    value === "ring"
+  );
 }
 
 function getMarqueePalette(id: MarqueePalettePresetId) {
@@ -684,12 +821,26 @@ function normalizeDialDashboardSettings(value: unknown): DialDashboardSettings {
   };
 }
 
+function normalizeLiquidDashboardSettings(value: unknown): LiquidDashboardSettings {
+  const fallback = DEFAULT_DASHBOARD_SETTINGS.liquid;
+  const record = isSettingsObject(value) ? (value as Partial<LiquidDashboardSettings>) : {};
+  return {
+    shape: isLiquidShape(record.shape) ? record.shape : fallback.shape,
+    wave: normalizePercent(record.wave, fallback.wave),
+    glass: normalizePercent(record.glass, fallback.glass),
+    glow: normalizePercent200(record.glow, fallback.glow),
+    motion: normalizePercent200(record.motion, fallback.motion),
+    texture: normalizePercent(record.texture, fallback.texture),
+  };
+}
+
 export function normalizeDashboardSettings(value: unknown): DashboardSettings {
   const record = isSettingsObject(value) ? (value as Partial<DashboardSettings>) : {};
   return {
     arc: normalizeArcDashboardSettings(record.arc),
     ring: normalizeRingDashboardSettings(record.ring),
     dial: normalizeDialDashboardSettings(record.dial),
+    liquid: normalizeLiquidDashboardSettings(record.liquid),
   };
 }
 
@@ -703,6 +854,20 @@ export function patchDashboardSetting(
     ...settings,
     [style]: {
       ...settings[style],
+      [key]: value,
+    },
+  });
+}
+
+export function patchLiquidDashboardSetting(
+  settings: DashboardSettings,
+  key: string,
+  value: unknown,
+) {
+  return normalizeDashboardSettings({
+    ...settings,
+    liquid: {
+      ...settings.liquid,
       [key]: value,
     },
   });
@@ -724,6 +889,9 @@ export function normalizeVisualStyleSettings(value: unknown): VisualStyleSetting
     cardStyle: isCardStyle(record.cardStyle)
       ? record.cardStyle
       : DEFAULT_VISUAL_STYLE_SETTINGS.cardStyle,
+    cardLayout: isCardLayout(record.cardLayout)
+      ? record.cardLayout
+      : DEFAULT_VISUAL_STYLE_SETTINGS.cardLayout,
     dashboardStyle: isDashboardStyle(record.dashboardStyle)
       ? record.dashboardStyle
       : legacyRadarCardStyle
@@ -862,6 +1030,7 @@ function applyDocumentStyle(settings: VisualStyleSettings) {
   const normalized = normalizeVisualStyleSettings(settings);
 
   root.dataset.cardStyle = normalized.cardStyle;
+  root.dataset.cardLayout = normalized.cardLayout;
   root.dataset.dashboardStyle = normalized.dashboardStyle;
   root.dataset.marqueePalette = normalized.marqueePalette;
   root.dataset.marqueeStyle = normalized.marqueeStyle.shape;
