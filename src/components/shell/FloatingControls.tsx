@@ -29,6 +29,9 @@ import {
   CARD_STYLE_PRESETS,
   MARQUEE_PALETTE_PRESETS,
   MARQUEE_STYLE_PRESETS,
+  RADAR_LATENCY_MAX_MAX_MS,
+  RADAR_LATENCY_MAX_MIN_MS,
+  RADAR_LATENCY_MAX_STEP_MS,
   VISUAL_COLOR_CONTROLS,
   useVisualStyle,
 } from "@/hooks/useVisualStyle";
@@ -552,6 +555,30 @@ export function FloatingControls() {
                 ))}
               </div>
             </div>
+
+            {visualStyle.cardStyle === "radar" && (
+              <div className="visual-style-section">
+                <div className="visual-style-section-title">3号雷达细节</div>
+                <label className="gradient-range-control">
+                  <span>
+                    <span>延迟上限</span>
+                    <strong>{visualStyle.radarLatencyMaxMs}ms</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={RADAR_LATENCY_MAX_MIN_MS}
+                    max={RADAR_LATENCY_MAX_MAX_MS}
+                    step={RADAR_LATENCY_MAX_STEP_MS}
+                    value={visualStyle.radarLatencyMaxMs}
+                    onChange={(event) =>
+                      updateVisualStyle({
+                        radarLatencyMaxMs: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            )}
 
             <div className="visual-style-section">
               <div className="visual-style-section-title">跑马灯样式</div>

@@ -702,6 +702,44 @@
     linear-gradient(135deg, color-mix(in srgb, var(--ys-marquee-up) 18%, var(--surface)), color-mix(in srgb, var(--ys-marquee-down) 16%, var(--surface)));
 }
 
+.visual-style-preview[data-card-style="radar"] .visual-style-preview-card {
+  border-color: color-mix(in srgb, var(--ys-marquee-down) 38%, var(--border));
+  background:
+    radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--ys-marquee-up) 18%, transparent) 0%, transparent 44%),
+    radial-gradient(circle at 86% 6%, color-mix(in srgb, var(--ys-marquee-peak) 14%, transparent) 0%, transparent 36%),
+    var(--surface);
+}
+
+.visual-style-preview[data-card-style="radar"] .visual-style-preview-bars {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.visual-style-preview[data-card-style="radar"] .visual-style-preview-bars span {
+  height: 42px;
+  border-radius: 13px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, var(--border-subtle));
+  background:
+    radial-gradient(circle at 50% 70%, var(--surface) 0 22%, transparent 23%),
+    conic-gradient(from 270deg, currentColor 0 108deg, color-mix(in srgb, var(--text-tertiary) 20%, transparent) 108deg 180deg, transparent 180deg);
+}
+
+.visual-style-preview[data-card-style="radar"] .visual-style-preview-bars span:nth-child(1) {
+  color: var(--ys-metric-cpu);
+}
+
+.visual-style-preview[data-card-style="radar"] .visual-style-preview-bars span:nth-child(2) {
+  color: var(--ys-metric-memory);
+}
+
+.visual-style-preview[data-card-style="radar"] .visual-style-preview-bars span:nth-child(3) {
+  color: var(--ys-marquee-up);
+}
+
+.visual-style-preview[data-card-style="radar"] .visual-style-preview-bars span:nth-child(4) {
+  color: var(--ys-metric-latency);
+}
+
 .visual-style-preview[data-card-style="minimal"] .visual-style-preview-card {
   border-radius: 10px;
   background: var(--surface);
@@ -2065,6 +2103,7 @@
 
 :root[data-gradient-surfaces="true"] .server-card-detail-link,
 :root[data-gradient-surfaces="true"] .metric-detail,
+:root[data-gradient-surfaces="true"] .radar-gauge,
 :root[data-gradient-surfaces="true"] .server-health-placeholder,
 :root[data-gradient-surfaces="true"] .server-health-tooltip,
 :root[data-gradient-surfaces="true"] .instance-chart-tooltip,
@@ -2357,6 +2396,122 @@
   min-width: 0;
 }
 
+.radar-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.radar-gauge {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px 7px 7px;
+  border: 1px solid color-mix(in srgb, var(--radar-color) 26%, var(--border-subtle));
+  border-radius: 13px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--radar-color) 13%, transparent) 0%, transparent 58%),
+    color-mix(in srgb, var(--surface-elev) 70%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent),
+    0 12px 24px -24px color-mix(in srgb, var(--radar-color) 38%, black);
+}
+
+.radar-gauge.is-empty {
+  --radar-color: var(--text-tertiary);
+}
+
+.radar-gauge-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: color-mix(in srgb, var(--radar-color) 78%, var(--text-secondary));
+  font-size: 10px;
+  font-weight: 740;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.radar-gauge-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.radar-gauge-svg {
+  display: block;
+  width: 100%;
+  height: 42px;
+  margin-top: 2px;
+  overflow: visible;
+}
+
+.radar-gauge-track,
+.radar-gauge-fill,
+.radar-gauge-glow {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.radar-gauge-track {
+  stroke: color-mix(in srgb, var(--text-tertiary) 22%, transparent);
+  stroke-width: 9;
+}
+
+.radar-gauge-glow {
+  stroke: var(--radar-color);
+  stroke-width: 14;
+  opacity: 0.14;
+  transition: stroke-dasharray 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.radar-gauge-fill {
+  stroke: var(--radar-color);
+  stroke-width: 9;
+  transition: stroke-dasharray 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.radar-gauge-value {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  margin-top: -22px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 780;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.radar-gauge-unit {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.radar-gauge-foot {
+  display: flex;
+  min-width: 0;
+  justify-content: center;
+  margin-top: 6px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 680;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.radar-gauge-foot span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .server-health-chart-wrap {
   position: relative;
 }
@@ -2471,9 +2626,25 @@
 
 :root[data-card-style="glass"] .card-metric-section,
 :root[data-card-style="glass"] .metric-detail,
+:root[data-card-style="glass"] .radar-gauge,
 :root[data-card-style="glass"] .server-health-placeholder,
 :root[data-card-style="glass"] .dstatus-tag-more {
   background: color-mix(in srgb, var(--surface-elev) 48%, transparent);
+}
+
+:root[data-card-style="radar"] .server-card {
+  border-color: color-mix(in srgb, var(--ys-marquee-down, var(--progress-cpu)) 36%, var(--border));
+  background:
+    radial-gradient(circle at 18% -8%, color-mix(in srgb, var(--ys-marquee-up, var(--progress-cpu)) 18%, transparent) 0%, transparent 42%),
+    radial-gradient(circle at 86% 4%, color-mix(in srgb, var(--ys-marquee-peak, var(--status-warning)) 14%, transparent) 0%, transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 93%, transparent), color-mix(in srgb, var(--surface) 96%, black 4%));
+  box-shadow:
+    0 22px 48px -38px color-mix(in srgb, var(--ys-marquee-down, var(--progress-cpu)) 44%, black),
+    inset 0 1px 0 color-mix(in srgb, white 20%, transparent);
+}
+
+:root[data-card-style="radar"] .server-card.is-radar-card .server-card-content {
+  gap: 16px;
 }
 
 :root[data-card-style="neon"] .server-card {
@@ -2528,6 +2699,7 @@
 
 :root[data-card-style="soft"] .metric-detail,
 :root[data-card-style="soft"] .server-card-detail-link,
+:root[data-card-style="soft"] .radar-gauge,
 :root[data-card-style="soft"] .server-health-placeholder,
 :root[data-card-style="soft"] .dstatus-tag-more {
   background: color-mix(in srgb, var(--ys-marquee-up, var(--status-online)) 9%, var(--surface-elev));
@@ -2555,6 +2727,7 @@
 
 :root[data-card-style="minimal"] .metric-detail,
 :root[data-card-style="minimal"] .server-card-detail-link,
+:root[data-card-style="minimal"] .radar-gauge,
 :root[data-card-style="minimal"] .server-health-placeholder,
 :root[data-card-style="minimal"] .dstatus-tag-more {
   border-radius: 6px;

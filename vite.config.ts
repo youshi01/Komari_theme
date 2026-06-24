@@ -29,7 +29,6 @@ export default defineConfig({
             "react-router-dom",
           ],
           "uplot": ["uplot", "uplot-react"],
-          "motion": ["framer-motion"],
           "query": ["@tanstack/react-query"],
         },
       },

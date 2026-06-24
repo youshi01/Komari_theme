@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { usePublicConfig } from "@/hooks/usePublicConfig";
 
-export type CardStylePresetId = "panel" | "glass" | "neon" | "soft" | "minimal";
+export type CardStylePresetId =
+  | "panel"
+  | "glass"
+  | "radar"
+  | "neon"
+  | "soft"
+  | "minimal";
 export type MarqueePalettePresetId =
   | "health"
   | "tech"
@@ -42,6 +48,7 @@ export interface MarqueeStyleSettings {
 
 export interface VisualStyleSettings {
   cardStyle: CardStylePresetId;
+  radarLatencyMaxMs: number;
   marqueePalette: MarqueePalettePresetId;
   marqueeStyle: MarqueeStyleSettings;
   colors: VisualMetricColors;
@@ -77,6 +84,11 @@ export const CARD_STYLE_PRESETS: CardStylePreset[] = [
     id: "glass",
     label: "清透玻璃",
     description: "高透明、强背景透出",
+  },
+  {
+    id: "radar",
+    label: "3号雷达",
+    description: "180度半弧展板，适合看实时状态",
   },
   {
     id: "neon",
@@ -268,10 +280,14 @@ export const VISUAL_COLOR_CONTROLS: Array<{
 ];
 
 const STORAGE_KEY = "komari-theme-YS:visual-style";
+export const RADAR_LATENCY_MAX_MIN_MS = 100;
+export const RADAR_LATENCY_MAX_MAX_MS = 5000;
+export const RADAR_LATENCY_MAX_STEP_MS = 100;
 export const DEFAULT_MARQUEE_STYLE_SETTINGS =
   MARQUEE_STYLE_PRESETS[0].settings;
 export const DEFAULT_VISUAL_STYLE_SETTINGS: VisualStyleSettings = {
   cardStyle: "panel",
+  radarLatencyMaxMs: 1000,
   marqueePalette: "health",
   marqueeStyle: DEFAULT_MARQUEE_STYLE_SETTINGS,
   colors: MARQUEE_PALETTE_PRESETS[0].colors,
@@ -288,6 +304,7 @@ function isCardStyle(value: unknown): value is CardStylePresetId {
   return (
     value === "panel" ||
     value === "glass" ||
+    value === "radar" ||
     value === "neon" ||
     value === "soft" ||
     value === "minimal"
@@ -349,6 +366,17 @@ function normalizePercent(value: unknown, fallback: number) {
   return Math.max(0, Math.min(100, Math.round(numeric)));
 }
 
+function normalizeRadarLatencyMaxMs(value: unknown) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_VISUAL_STYLE_SETTINGS.radarLatencyMaxMs;
+  const stepped =
+    Math.round(numeric / RADAR_LATENCY_MAX_STEP_MS) * RADAR_LATENCY_MAX_STEP_MS;
+  return Math.max(
+    RADAR_LATENCY_MAX_MIN_MS,
+    Math.min(RADAR_LATENCY_MAX_MAX_MS, stepped),
+  );
+}
+
 export function normalizeMarqueeStyleSettings(
   value: unknown,
 ): MarqueeStyleSettings {
@@ -387,6 +415,7 @@ export function normalizeVisualStyleSettings(value: unknown): VisualStyleSetting
     cardStyle: isCardStyle(record.cardStyle)
       ? record.cardStyle
       : DEFAULT_VISUAL_STYLE_SETTINGS.cardStyle,
+    radarLatencyMaxMs: normalizeRadarLatencyMaxMs(record.radarLatencyMaxMs),
     marqueePalette,
     marqueeStyle: normalizeMarqueeStyleSettings(record.marqueeStyle),
     colors: {
@@ -520,6 +549,7 @@ function applyDocumentStyle(settings: VisualStyleSettings) {
   root.dataset.cardStyle = normalized.cardStyle;
   root.dataset.marqueePalette = normalized.marqueePalette;
   root.dataset.marqueeStyle = normalized.marqueeStyle.shape;
+  root.style.setProperty("--ys-radar-latency-max-ms", `${normalized.radarLatencyMaxMs}`);
   root.style.setProperty("--ys-marquee-density", `${normalized.marqueeStyle.density}`);
   root.style.setProperty("--ys-marquee-radius", `${normalized.marqueeStyle.radius}`);
   root.style.setProperty("--ys-marquee-glow", `${normalized.marqueeStyle.glow}`);

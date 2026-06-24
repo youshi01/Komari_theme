@@ -80,6 +80,9 @@ import {
   DEFAULT_VISUAL_STYLE_SETTINGS,
   MARQUEE_PALETTE_PRESETS,
   MARQUEE_STYLE_PRESETS,
+  RADAR_LATENCY_MAX_MAX_MS,
+  RADAR_LATENCY_MAX_MIN_MS,
+  RADAR_LATENCY_MAX_STEP_MS,
   VISUAL_COLOR_CONTROLS,
   normalizeVisualStyleSettings,
   serializeVisualStyleSettings,
@@ -959,6 +962,33 @@ export function ThemeManage() {
                 ))}
               </div>
             </div>
+
+            {draftVisualStyle.cardStyle === "radar" && (
+              <div className="surface-inset p-4">
+                <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                  <Cpu size={14} />
+                  <span>3号雷达细节</span>
+                </div>
+                <label className="gradient-range-control !mt-0">
+                  <span>
+                    <span>延迟上限</span>
+                    <strong>{draftVisualStyle.radarLatencyMaxMs}ms</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={RADAR_LATENCY_MAX_MIN_MS}
+                    max={RADAR_LATENCY_MAX_MAX_MS}
+                    step={RADAR_LATENCY_MAX_STEP_MS}
+                    value={draftVisualStyle.radarLatencyMaxMs}
+                    onChange={(event) =>
+                      updateDraftVisualStyle({
+                        radarLatencyMaxMs: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            )}
 
             <div className="surface-inset p-4">
               <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">

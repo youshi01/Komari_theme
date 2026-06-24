@@ -5,10 +5,6 @@ komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komar
 ![komari-theme-YS Preview](./preview-readme.png)
 
 ## 截图
-高度自定义样式
-
-<img src="https://cdn.nodeimage.com/i/NEvUisBSMxXHMwnGQA9I6JUJ4Kuqhnoh.webp" alt="NEvUisBSMxXHMwnGQA9I6JUJ4Kuqhnoh.webp">
-<img src="https://cdn.nodeimage.com/i/18MSTIumciAy3UpRMiSe9qwX9XVBHkzS.webp" alt="18MSTIumciAy3UpRMiSe9qwX9XVBHkzS.webp">
 
 白日模式首页截图：
 

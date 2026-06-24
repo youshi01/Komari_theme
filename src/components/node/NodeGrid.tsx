@@ -111,6 +111,8 @@ export function NodeGrid() {
             <NodeCard
               uuid={uuid}
               visualRedrawKey={visualRedrawKey}
+              cardStyle={visualStyle.cardStyle}
+              radarLatencyMaxMs={visualStyle.radarLatencyMaxMs}
               marqueeStyle={visualStyle.marqueeStyle}
             />
           </div>
