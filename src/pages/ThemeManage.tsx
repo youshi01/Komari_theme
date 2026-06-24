@@ -77,7 +77,10 @@ import {
 } from "@/hooks/useGradientBackground";
 import {
   CARD_STYLE_PRESETS,
+  DASHBOARD_STYLE_PRESETS,
+  DASHBOARD_TUNING_CONTROLS,
   DEFAULT_VISUAL_STYLE_SETTINGS,
+  GAUGE_STYLE_PRESETS,
   MARQUEE_PALETTE_PRESETS,
   MARQUEE_STYLE_PRESETS,
   RADAR_LATENCY_MAX_MAX_MS,
@@ -85,6 +88,7 @@ import {
   RADAR_LATENCY_MAX_STEP_MS,
   VISUAL_COLOR_CONTROLS,
   normalizeVisualStyleSettings,
+  patchDashboardSetting,
   serializeVisualStyleSettings,
   type VisualStyleSettings,
 } from "@/hooks/useVisualStyle";
@@ -613,6 +617,8 @@ export function ThemeManage() {
     setDraftVisualStyle((current) => normalizeVisualStyleSettings({ ...current, ...patch }));
     setMessage(null);
   };
+  const activeDraftDashboardStyle =
+    draftVisualStyle.dashboardStyle === "bars" ? null : draftVisualStyle.dashboardStyle;
 
   const updateDraftNodeSort = (patch: Partial<HomepageNodeSortSettings>) => {
     setDraftNodeSort((current) =>
@@ -936,8 +942,8 @@ export function ThemeManage() {
       </InstancePanel>
 
       <InstancePanel
-        title="全站默认卡片样式"
-        description="管理员保存后作为游客和未设置本机样式用户的默认卡片与跑马灯风格；首页快捷面板仍可本机覆盖。"
+        title="全站默认卡片与样式"
+        description="管理员保存后作为游客和未设置本机样式用户的默认卡片外壳、信息展板、数据条动态样式和配色；首页快捷面板仍可本机覆盖。"
         aside={<Layers size={16} />}
       >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -945,7 +951,7 @@ export function ThemeManage() {
             <div className="surface-inset p-4">
               <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
                 <Layers size={14} />
-                <span>卡片样式预设</span>
+                <span>卡片外壳预设</span>
               </div>
               <div className="visual-style-preset-list is-grid">
                 {CARD_STYLE_PRESETS.map((preset) => (
@@ -963,96 +969,188 @@ export function ThemeManage() {
               </div>
             </div>
 
-            {draftVisualStyle.cardStyle === "radar" && (
-              <div className="surface-inset p-4">
-                <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                  <Cpu size={14} />
-                  <span>3号雷达细节</span>
-                </div>
-                <label className="gradient-range-control !mt-0">
-                  <span>
-                    <span>延迟上限</span>
-                    <strong>{draftVisualStyle.radarLatencyMaxMs}ms</strong>
-                  </span>
-                  <input
-                    type="range"
-                    min={RADAR_LATENCY_MAX_MIN_MS}
-                    max={RADAR_LATENCY_MAX_MAX_MS}
-                    step={RADAR_LATENCY_MAX_STEP_MS}
-                    value={draftVisualStyle.radarLatencyMaxMs}
-                    onChange={(event) =>
-                      updateDraftVisualStyle({
-                        radarLatencyMaxMs: Number(event.target.value),
-                      })
-                    }
-                  />
-                </label>
-              </div>
-            )}
-
             <div className="surface-inset p-4">
               <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                <Sparkles size={14} />
-                <span>跑马灯样式预设</span>
+                <Cpu size={14} />
+                <span>信息展板预设</span>
               </div>
               <div className="visual-style-preset-list is-grid">
-                {MARQUEE_STYLE_PRESETS.map((preset) => (
+                {DASHBOARD_STYLE_PRESETS.map((preset) => (
                   <button
                     key={preset.id}
                     type="button"
                     className="visual-style-preset"
                     data-active={
-                      draftVisualStyle.marqueeStyle.preset === preset.id ? "true" : "false"
+                      draftVisualStyle.dashboardStyle === preset.id ? "true" : "false"
                     }
-                    onClick={() =>
-                      updateDraftVisualStyle({
-                        marqueeStyle: { ...preset.settings },
-                      })
-                    }
+                    onClick={() => updateDraftVisualStyle({ dashboardStyle: preset.id })}
                   >
                     <span className="visual-style-preset-name">{preset.label}</span>
                     <span className="visual-style-preset-copy">{preset.description}</span>
                   </button>
                 ))}
               </div>
-              <div className="mt-4 grid gap-3">
-                <MarqueePreviewStrip
-                  className="marquee-style-preview-strip"
-                  style={draftVisualStyle.marqueeStyle}
-                  colors={draftVisualStyle.colors}
-                  height={18}
-                />
-                {(
-                  [
-                    ["density", "密度"],
-                    ["radius", "圆角"],
-                    ["glow", "光晕"],
-                    ["motion", "动效"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key} className="gradient-range-control !mt-0">
+              {activeDraftDashboardStyle && (
+                <div className="mt-4 grid gap-3 border-t border-[var(--hairline)] pt-4">
+                  <div className="text-[12px] font-semibold text-[var(--text-secondary)]">
+                    环形样式
+                  </div>
+                  <div className="visual-style-preset-list is-grid is-gauge-style">
+                    {GAUGE_STYLE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className="visual-style-preset"
+                        data-active={
+                          draftVisualStyle.dashboardSettings[activeDraftDashboardStyle]
+                            .gaugeStyle === preset.id
+                            ? "true"
+                            : "false"
+                        }
+                        onClick={() =>
+                          updateDraftVisualStyle({
+                            dashboardSettings: patchDashboardSetting(
+                              draftVisualStyle.dashboardSettings,
+                              activeDraftDashboardStyle,
+                              "gaugeStyle",
+                              preset.id,
+                            ),
+                          })
+                        }
+                      >
+                        <span className="visual-style-preset-name">
+                          {preset.label}
+                        </span>
+                        <span className="visual-style-preset-copy">
+                          {preset.description}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <label className="gradient-range-control !mt-0">
                     <span>
-                      <span>{label}</span>
-                      <strong>{draftVisualStyle.marqueeStyle[key]}%</strong>
+                      <span>延迟上限</span>
+                      <strong>{draftVisualStyle.radarLatencyMaxMs}ms</strong>
                     </span>
                     <input
                       type="range"
-                      min={0}
-                      max={100}
-                      value={draftVisualStyle.marqueeStyle[key]}
+                      min={RADAR_LATENCY_MAX_MIN_MS}
+                      max={RADAR_LATENCY_MAX_MAX_MS}
+                      step={RADAR_LATENCY_MAX_STEP_MS}
+                      value={draftVisualStyle.radarLatencyMaxMs}
                       onChange={(event) =>
                         updateDraftVisualStyle({
-                          marqueeStyle: {
-                            ...draftVisualStyle.marqueeStyle,
-                            preset: "custom",
-                            [key]: Number(event.target.value),
-                          },
+                          radarLatencyMaxMs: Number(event.target.value),
                         })
                       }
                     />
                   </label>
-                ))}
-              </div>
+                  {DASHBOARD_TUNING_CONTROLS[activeDraftDashboardStyle].map(
+                    ({ key, label, max = 100 }) => {
+                      const value = Number(
+                        draftVisualStyle.dashboardSettings[activeDraftDashboardStyle][
+                          key as keyof (typeof draftVisualStyle.dashboardSettings)[typeof activeDraftDashboardStyle]
+                        ],
+                      );
+
+                      return (
+                        <label key={key} className="gradient-range-control !mt-0">
+                          <span>
+                            <span>{label}</span>
+                            <strong>{value}%</strong>
+                          </span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={max}
+                            value={value}
+                            onChange={(event) =>
+                              updateDraftVisualStyle({
+                                dashboardSettings: patchDashboardSetting(
+                                  draftVisualStyle.dashboardSettings,
+                                  activeDraftDashboardStyle,
+                                  key,
+                                  Number(event.target.value),
+                                ),
+                              })
+                            }
+                          />
+                        </label>
+                      );
+                    },
+                  )}
+                </div>
+              )}
+              {draftVisualStyle.dashboardStyle === "bars" && (
+                <div className="mt-4 border-t border-[var(--hairline)] pt-4">
+                  <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                    <Sparkles size={14} />
+                    <span>数据条细节</span>
+                  </div>
+                  <div className="visual-style-preset-list is-grid">
+                    {MARQUEE_STYLE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className="visual-style-preset"
+                        data-active={
+                          draftVisualStyle.marqueeStyle.preset === preset.id
+                            ? "true"
+                            : "false"
+                        }
+                        onClick={() =>
+                          updateDraftVisualStyle({
+                            marqueeStyle: { ...preset.settings },
+                          })
+                        }
+                      >
+                        <span className="visual-style-preset-name">{preset.label}</span>
+                        <span className="visual-style-preset-copy">
+                          {preset.description}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    <MarqueePreviewStrip
+                      className="marquee-style-preview-strip"
+                      style={draftVisualStyle.marqueeStyle}
+                      colors={draftVisualStyle.colors}
+                      height={18}
+                    />
+                    {(
+                      [
+                        ["density", "密度"],
+                        ["radius", "圆角"],
+                        ["glow", "光晕"],
+                        ["motion", "动效"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <label key={key} className="gradient-range-control !mt-0">
+                        <span>
+                          <span>{label}</span>
+                          <strong>{draftVisualStyle.marqueeStyle[key]}%</strong>
+                        </span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={draftVisualStyle.marqueeStyle[key]}
+                          onChange={(event) =>
+                            updateDraftVisualStyle({
+                              marqueeStyle: {
+                                ...draftVisualStyle.marqueeStyle,
+                                preset: "custom",
+                                [key]: Number(event.target.value),
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="surface-inset p-4">
@@ -1136,6 +1234,7 @@ export function ThemeManage() {
           <div
             className="visual-style-preview surface-inset"
             data-card-style={draftVisualStyle.cardStyle}
+            data-dashboard-style={draftVisualStyle.dashboardStyle}
             data-marquee-style={draftVisualStyle.marqueeStyle.shape}
             style={
               (() => {
@@ -1160,6 +1259,12 @@ export function ThemeManage() {
                 {
                   CARD_STYLE_PRESETS.find(
                     (preset) => preset.id === draftVisualStyle.cardStyle,
+                  )?.label
+                }
+                {" / "}
+                {
+                  DASHBOARD_STYLE_PRESETS.find(
+                    (preset) => preset.id === draftVisualStyle.dashboardStyle,
                   )?.label
                 }
                 {" / "}

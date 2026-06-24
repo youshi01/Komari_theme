@@ -4,10 +4,29 @@ import { usePublicConfig } from "@/hooks/usePublicConfig";
 export type CardStylePresetId =
   | "panel"
   | "glass"
-  | "radar"
   | "neon"
   | "soft"
   | "minimal";
+export type DashboardStylePresetId =
+  | "bars"
+  | "arc"
+  | "ring"
+  | "dial";
+export type TunableDashboardStyleId = Exclude<DashboardStylePresetId, "bars">;
+export type GaugeStylePresetId =
+  | "clean"
+  | "neon"
+  | "segmented"
+  | "soft"
+  | "minimal"
+  | "fragment"
+  | "pulse"
+  | "liquid"
+  | "circuit"
+  | "wave"
+  | "dual"
+  | "aurora"
+  | "scan";
 export type MarqueePalettePresetId =
   | "health"
   | "tech"
@@ -46,8 +65,41 @@ export interface MarqueeStyleSettings {
   motion: number;
 }
 
+export interface ArcDashboardSettings {
+  gaugeStyle: GaugeStylePresetId;
+  thickness: number;
+  glow: number;
+  motion: number;
+  compactness: number;
+}
+
+export interface RingDashboardSettings {
+  gaugeStyle: GaugeStylePresetId;
+  thickness: number;
+  centerScale: number;
+  glow: number;
+  motion: number;
+}
+
+export interface DialDashboardSettings {
+  gaugeStyle: GaugeStylePresetId;
+  thickness: number;
+  needle: number;
+  ticks: number;
+  glow: number;
+  motion: number;
+}
+
+export interface DashboardSettings {
+  arc: ArcDashboardSettings;
+  ring: RingDashboardSettings;
+  dial: DialDashboardSettings;
+}
+
 export interface VisualStyleSettings {
   cardStyle: CardStylePresetId;
+  dashboardStyle: DashboardStylePresetId;
+  dashboardSettings: DashboardSettings;
   radarLatencyMaxMs: number;
   marqueePalette: MarqueePalettePresetId;
   marqueeStyle: MarqueeStyleSettings;
@@ -56,6 +108,18 @@ export interface VisualStyleSettings {
 
 export interface CardStylePreset {
   id: CardStylePresetId;
+  label: string;
+  description: string;
+}
+
+export interface DashboardStylePreset {
+  id: DashboardStylePresetId;
+  label: string;
+  description: string;
+}
+
+export interface GaugeStylePreset {
+  id: GaugeStylePresetId;
   label: string;
   description: string;
 }
@@ -74,6 +138,12 @@ export interface MarqueeStylePreset {
   settings: MarqueeStyleSettings;
 }
 
+export interface DashboardTuningControl {
+  key: string;
+  label: string;
+  max?: number;
+}
+
 export const CARD_STYLE_PRESETS: CardStylePreset[] = [
   {
     id: "panel",
@@ -84,11 +154,6 @@ export const CARD_STYLE_PRESETS: CardStylePreset[] = [
     id: "glass",
     label: "清透玻璃",
     description: "高透明、强背景透出",
-  },
-  {
-    id: "radar",
-    label: "3号雷达",
-    description: "180度半弧展板，适合看实时状态",
   },
   {
     id: "neon",
@@ -106,6 +171,122 @@ export const CARD_STYLE_PRESETS: CardStylePreset[] = [
     description: "少装饰、轻边框、好读数",
   },
 ];
+
+export const DASHBOARD_STYLE_PRESETS: DashboardStylePreset[] = [
+  {
+    id: "bars",
+    label: "数据条",
+    description: "保留原来的条形数据布局，信息密度最高",
+  },
+  {
+    id: "arc",
+    label: "弧光仪表",
+    description: "180度半弧开合，突出实时状态变化",
+  },
+  {
+    id: "ring",
+    label: "全环仪表",
+    description: "完整圆环读数，更像监控大屏",
+  },
+  {
+    id: "dial",
+    label: "指针仪表",
+    description: "用指针角度表达强弱，状态感更明显",
+  },
+];
+
+export const GAUGE_STYLE_PRESETS: GaugeStylePreset[] = [
+  {
+    id: "clean",
+    label: "清透光环",
+    description: "保留当前读数感，干净、轻量、通用",
+  },
+  {
+    id: "neon",
+    label: "霓虹双轨",
+    description: "高亮外晕和双层轨道，更适合暗色背景",
+  },
+  {
+    id: "segmented",
+    label: "分段刻度",
+    description: "环线带刻度断点，状态变化更有监控感",
+  },
+  {
+    id: "soft",
+    label: "柔光厚环",
+    description: "更厚的柔和色块，配渐变背板更统一",
+  },
+  {
+    id: "minimal",
+    label: "极简细线",
+    description: "弱化装饰和边框，优先突出数字",
+  },
+  {
+    id: "fragment",
+    label: "碎片轨道",
+    description: "不规则断片和错位轨道，像数据被切开",
+  },
+  {
+    id: "pulse",
+    label: "脉冲齿环",
+    description: "外圈齿状刻度持续脉冲，监控感更强",
+  },
+  {
+    id: "liquid",
+    label: "液态胶囊",
+    description: "厚环、流体端点和柔和漂浮感，更艺术",
+  },
+  {
+    id: "circuit",
+    label: "电路星轨",
+    description: "环线接入节点和短线，像设备数据总线",
+  },
+  {
+    id: "wave",
+    label: "声波脉冲",
+    description: "环外带微动声波柱，适合实时状态变化",
+  },
+  {
+    id: "dual",
+    label: "双轨错位",
+    description: "内外双轨不同步运动，层次和速度感更明显",
+  },
+  {
+    id: "aurora",
+    label: "极光丝带环",
+    description: "宽窄叠层和丝带扫光，配背景板更有氛围",
+  },
+  {
+    id: "scan",
+    label: "断点扫描",
+    description: "断点刻度加扫描拖尾，突出当前进度头",
+  },
+];
+
+export const DASHBOARD_TUNING_CONTROLS: Record<
+  TunableDashboardStyleId,
+  DashboardTuningControl[]
+> = {
+  arc: [
+    { key: "thickness", label: "弧线粗细" },
+    { key: "glow", label: "弧光强度", max: 200 },
+    { key: "motion", label: "动效强度", max: 200 },
+    { key: "compactness", label: "紧凑度" },
+  ],
+  ring: [
+    { key: "thickness", label: "环宽" },
+    { key: "centerScale", label: "中心数值" },
+    { key: "glow", label: "光晕强度", max: 200 },
+    { key: "motion", label: "动效强度", max: 200 },
+  ],
+  dial: [
+    { key: "thickness", label: "弧线粗细" },
+    { key: "needle", label: "指针粗细" },
+    { key: "ticks", label: "刻度强度" },
+    { key: "glow", label: "光晕强度", max: 200 },
+    { key: "motion", label: "动效强度", max: 200 },
+  ],
+};
 
 export const MARQUEE_PALETTE_PRESETS: MarqueePalettePreset[] = [
   {
@@ -285,8 +466,34 @@ export const RADAR_LATENCY_MAX_MAX_MS = 5000;
 export const RADAR_LATENCY_MAX_STEP_MS = 100;
 export const DEFAULT_MARQUEE_STYLE_SETTINGS =
   MARQUEE_STYLE_PRESETS[0].settings;
+export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
+  arc: {
+    gaugeStyle: "clean",
+    thickness: 48,
+    glow: 38,
+    motion: 42,
+    compactness: 42,
+  },
+  ring: {
+    gaugeStyle: "clean",
+    thickness: 46,
+    centerScale: 54,
+    glow: 34,
+    motion: 38,
+  },
+  dial: {
+    gaugeStyle: "clean",
+    thickness: 42,
+    needle: 50,
+    ticks: 56,
+    glow: 36,
+    motion: 48,
+  },
+};
 export const DEFAULT_VISUAL_STYLE_SETTINGS: VisualStyleSettings = {
   cardStyle: "panel",
+  dashboardStyle: "bars",
+  dashboardSettings: DEFAULT_DASHBOARD_SETTINGS,
   radarLatencyMaxMs: 1000,
   marqueePalette: "health",
   marqueeStyle: DEFAULT_MARQUEE_STYLE_SETTINGS,
@@ -304,10 +511,36 @@ function isCardStyle(value: unknown): value is CardStylePresetId {
   return (
     value === "panel" ||
     value === "glass" ||
-    value === "radar" ||
     value === "neon" ||
     value === "soft" ||
     value === "minimal"
+  );
+}
+
+function isDashboardStyle(value: unknown): value is DashboardStylePresetId {
+  return (
+    value === "bars" ||
+    value === "arc" ||
+    value === "ring" ||
+    value === "dial"
+  );
+}
+
+function isGaugeStylePreset(value: unknown): value is GaugeStylePresetId {
+  return (
+    value === "clean" ||
+    value === "neon" ||
+    value === "segmented" ||
+    value === "soft" ||
+    value === "minimal" ||
+    value === "fragment" ||
+    value === "pulse" ||
+    value === "liquid" ||
+    value === "circuit" ||
+    value === "wave" ||
+    value === "dual" ||
+    value === "aurora" ||
+    value === "scan"
   );
 }
 
@@ -360,10 +593,18 @@ function isSettingsObject(value: unknown) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function normalizePercent(value: unknown, fallback: number) {
+function normalizePercentWithMax(value: unknown, fallback: number, max: number) {
   const numeric = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numeric)) return fallback;
-  return Math.max(0, Math.min(100, Math.round(numeric)));
+  return Math.max(0, Math.min(max, Math.round(numeric)));
+}
+
+function normalizePercent(value: unknown, fallback: number) {
+  return normalizePercentWithMax(value, fallback, 100);
+}
+
+function normalizePercent200(value: unknown, fallback: number) {
+  return normalizePercentWithMax(value, fallback, 200);
 }
 
 function normalizeRadarLatencyMaxMs(value: unknown) {
@@ -400,9 +641,77 @@ export function normalizeMarqueeStyleSettings(
   };
 }
 
+function normalizeArcDashboardSettings(value: unknown): ArcDashboardSettings {
+  const fallback = DEFAULT_DASHBOARD_SETTINGS.arc;
+  const record = isSettingsObject(value) ? (value as Partial<ArcDashboardSettings>) : {};
+  return {
+    gaugeStyle: isGaugeStylePreset(record.gaugeStyle)
+      ? record.gaugeStyle
+      : fallback.gaugeStyle,
+    thickness: normalizePercent(record.thickness, fallback.thickness),
+    glow: normalizePercent200(record.glow, fallback.glow),
+    motion: normalizePercent200(record.motion, fallback.motion),
+    compactness: normalizePercent(record.compactness, fallback.compactness),
+  };
+}
+
+function normalizeRingDashboardSettings(value: unknown): RingDashboardSettings {
+  const fallback = DEFAULT_DASHBOARD_SETTINGS.ring;
+  const record = isSettingsObject(value) ? (value as Partial<RingDashboardSettings>) : {};
+  return {
+    gaugeStyle: isGaugeStylePreset(record.gaugeStyle)
+      ? record.gaugeStyle
+      : fallback.gaugeStyle,
+    thickness: normalizePercent(record.thickness, fallback.thickness),
+    centerScale: normalizePercent(record.centerScale, fallback.centerScale),
+    glow: normalizePercent200(record.glow, fallback.glow),
+    motion: normalizePercent200(record.motion, fallback.motion),
+  };
+}
+
+function normalizeDialDashboardSettings(value: unknown): DialDashboardSettings {
+  const fallback = DEFAULT_DASHBOARD_SETTINGS.dial;
+  const record = isSettingsObject(value) ? (value as Partial<DialDashboardSettings>) : {};
+  return {
+    gaugeStyle: isGaugeStylePreset(record.gaugeStyle)
+      ? record.gaugeStyle
+      : fallback.gaugeStyle,
+    thickness: normalizePercent(record.thickness, fallback.thickness),
+    needle: normalizePercent(record.needle, fallback.needle),
+    ticks: normalizePercent(record.ticks, fallback.ticks),
+    glow: normalizePercent200(record.glow, fallback.glow),
+    motion: normalizePercent200(record.motion, fallback.motion),
+  };
+}
+
+export function normalizeDashboardSettings(value: unknown): DashboardSettings {
+  const record = isSettingsObject(value) ? (value as Partial<DashboardSettings>) : {};
+  return {
+    arc: normalizeArcDashboardSettings(record.arc),
+    ring: normalizeRingDashboardSettings(record.ring),
+    dial: normalizeDialDashboardSettings(record.dial),
+  };
+}
+
+export function patchDashboardSetting(
+  settings: DashboardSettings,
+  style: TunableDashboardStyleId,
+  key: string,
+  value: unknown,
+) {
+  return normalizeDashboardSettings({
+    ...settings,
+    [style]: {
+      ...settings[style],
+      [key]: value,
+    },
+  });
+}
+
 export function normalizeVisualStyleSettings(value: unknown): VisualStyleSettings {
   if (!isSettingsObject(value)) return DEFAULT_VISUAL_STYLE_SETTINGS;
-  const record = value as Partial<VisualStyleSettings>;
+  const record = value as Record<string, unknown>;
+  const legacyRadarCardStyle = record.cardStyle === "radar";
   const marqueePalette = isMarqueePalette(record.marqueePalette)
     ? record.marqueePalette
     : DEFAULT_VISUAL_STYLE_SETTINGS.marqueePalette;
@@ -415,6 +724,12 @@ export function normalizeVisualStyleSettings(value: unknown): VisualStyleSetting
     cardStyle: isCardStyle(record.cardStyle)
       ? record.cardStyle
       : DEFAULT_VISUAL_STYLE_SETTINGS.cardStyle,
+    dashboardStyle: isDashboardStyle(record.dashboardStyle)
+      ? record.dashboardStyle
+      : legacyRadarCardStyle
+        ? "arc"
+        : DEFAULT_VISUAL_STYLE_SETTINGS.dashboardStyle,
+    dashboardSettings: normalizeDashboardSettings(record.dashboardSettings),
     radarLatencyMaxMs: normalizeRadarLatencyMaxMs(record.radarLatencyMaxMs),
     marqueePalette,
     marqueeStyle: normalizeMarqueeStyleSettings(record.marqueeStyle),
@@ -547,6 +862,7 @@ function applyDocumentStyle(settings: VisualStyleSettings) {
   const normalized = normalizeVisualStyleSettings(settings);
 
   root.dataset.cardStyle = normalized.cardStyle;
+  root.dataset.dashboardStyle = normalized.dashboardStyle;
   root.dataset.marqueePalette = normalized.marqueePalette;
   root.dataset.marqueeStyle = normalized.marqueeStyle.shape;
   root.style.setProperty("--ys-radar-latency-max-ms", `${normalized.radarLatencyMaxMs}`);

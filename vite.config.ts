@@ -15,6 +15,7 @@ export default defineConfig({
   build: {
     target: "es2022",
     cssCodeSplit: false,
+    emptyOutDir: true,
     assetsInlineLimit: 4096,
     sourcemap: false,
     rollupOptions: {

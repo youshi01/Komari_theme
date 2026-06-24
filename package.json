@@ -1,12 +1,13 @@
 {
   "name": "komari-theme-YS",
   "private": true,
-  "version": "1.0.24",
+  "version": "1.1.0-p5",
   "type": "module",
   "description": "Komari theme",
   "author": "YS",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/clean-dist.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "package": "node scripts/package-zip.mjs",

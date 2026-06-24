@@ -27,12 +27,16 @@ import {
 } from "@/hooks/useGradientBackground";
 import {
   CARD_STYLE_PRESETS,
+  DASHBOARD_STYLE_PRESETS,
+  DASHBOARD_TUNING_CONTROLS,
+  GAUGE_STYLE_PRESETS,
   MARQUEE_PALETTE_PRESETS,
   MARQUEE_STYLE_PRESETS,
   RADAR_LATENCY_MAX_MAX_MS,
   RADAR_LATENCY_MAX_MIN_MS,
   RADAR_LATENCY_MAX_STEP_MS,
   VISUAL_COLOR_CONTROLS,
+  patchDashboardSetting,
   useVisualStyle,
 } from "@/hooks/useVisualStyle";
 import { MarqueePreviewStrip } from "@/components/node/MarqueePreviewStrip";
@@ -55,6 +59,12 @@ const APPEARANCE_OPTIONS = [
   { value: "system", icon: Monitor, label: "跟随系统" },
   { value: "dark", icon: Moon, label: "深色" },
 ] as const;
+const VISUAL_STYLE_QUICK_TABS = [
+  { id: "card", label: "卡片外壳" },
+  { id: "dashboard", label: "信息展板" },
+  { id: "palette", label: "配色" },
+] as const;
+type VisualStyleQuickTab = (typeof VISUAL_STYLE_QUICK_TABS)[number]["id"];
 const COLLAPSED_STORAGE_KEY = "komari-theme-YS:floating-controls-collapsed";
 
 function readStoredCollapsed() {
@@ -107,6 +117,8 @@ export function FloatingControls() {
   const [gradientPanelOpen, setGradientPanelOpen] = useState(false);
   const [stylePanelOpen, setStylePanelOpen] = useState(false);
   const [sortPanelOpen, setSortPanelOpen] = useState(false);
+  const [visualStyleTab, setVisualStyleTab] =
+    useState<VisualStyleQuickTab>("card");
   const anyPanelOpen = gradientPanelOpen || stylePanelOpen || sortPanelOpen;
   const showAdmin = config?.theme_settings?.enableAdminButton !== false;
   const showThemeManage = Boolean(me?.logged_in);
@@ -132,6 +144,8 @@ export function FloatingControls() {
     : backgroundSettings.enabled
       ? "先添加图片背景"
       : "先在主题设置启用图片背景";
+  const activeDashboardStyle =
+    visualStyle.dashboardStyle === "bars" ? null : visualStyle.dashboardStyle;
 
   useEffect(() => {
     if (!anyPanelOpen) return;
@@ -521,10 +535,15 @@ export function FloatingControls() {
           </div>
         )}
         {stylePanelOpen && !collapsed && (
-          <div className="visual-style-quick-panel">
+          <div
+            className={clsx(
+              "visual-style-quick-panel",
+              visualStyleTab === "dashboard" && "is-dashboard-panel",
+            )}
+          >
             <div className="gradient-quick-panel-head">
               <div>
-                <div className="gradient-quick-title">卡片与跑马灯</div>
+                <div className="gradient-quick-title">卡片与样式</div>
                 <div className="gradient-quick-subtitle">{visualStyleSourceLabel}</div>
               </div>
               <button
@@ -538,166 +557,290 @@ export function FloatingControls() {
               </button>
             </div>
 
-            <div className="visual-style-section">
-              <div className="visual-style-section-title">卡片样式</div>
-              <div className="visual-style-preset-list">
-                {CARD_STYLE_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className="visual-style-preset"
-                    data-active={visualStyle.cardStyle === preset.id ? "true" : "false"}
-                    onClick={() => updateVisualStyle({ cardStyle: preset.id })}
-                  >
-                    <span className="visual-style-preset-name">{preset.label}</span>
-                    <span className="visual-style-preset-copy">{preset.description}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {visualStyle.cardStyle === "radar" && (
-              <div className="visual-style-section">
-                <div className="visual-style-section-title">3号雷达细节</div>
-                <label className="gradient-range-control">
-                  <span>
-                    <span>延迟上限</span>
-                    <strong>{visualStyle.radarLatencyMaxMs}ms</strong>
-                  </span>
-                  <input
-                    type="range"
-                    min={RADAR_LATENCY_MAX_MIN_MS}
-                    max={RADAR_LATENCY_MAX_MAX_MS}
-                    step={RADAR_LATENCY_MAX_STEP_MS}
-                    value={visualStyle.radarLatencyMaxMs}
-                    onChange={(event) =>
-                      updateVisualStyle({
-                        radarLatencyMaxMs: Number(event.target.value),
-                      })
-                    }
-                  />
-                </label>
-              </div>
-            )}
-
-            <div className="visual-style-section">
-              <div className="visual-style-section-title">跑马灯样式</div>
-              <div className="visual-style-preset-list">
-                {MARQUEE_STYLE_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className="visual-style-preset"
-                    data-active={
-                      visualStyle.marqueeStyle.preset === preset.id ? "true" : "false"
-                    }
-                    onClick={() =>
-                      updateVisualStyle({
-                        marqueeStyle: { ...preset.settings },
-                      })
-                    }
-                  >
-                    <span className="visual-style-preset-name">{preset.label}</span>
-                    <span className="visual-style-preset-copy">{preset.description}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="visual-style-section">
-              <div className="visual-style-section-title">动态细节</div>
-              <MarqueePreviewStrip
-                className="marquee-style-preview-strip"
-                style={visualStyle.marqueeStyle}
-                colors={visualStyle.colors}
-                height={16}
-              />
-              {(
-                [
-                  ["density", "密度"],
-                  ["radius", "圆角"],
-                  ["glow", "光晕"],
-                  ["motion", "动效"],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="gradient-range-control">
-                  <span>
-                    <span>{label}</span>
-                    <strong>{visualStyle.marqueeStyle[key]}%</strong>
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={visualStyle.marqueeStyle[key]}
-                    onChange={(event) =>
-                      updateVisualStyle({
-                        marqueeStyle: {
-                          ...visualStyle.marqueeStyle,
-                          preset: "custom",
-                          [key]: Number(event.target.value),
-                        },
-                      })
-                    }
-                  />
-                </label>
+            <div className="visual-style-tab-list" role="tablist" aria-label="样式设置分类">
+              {VISUAL_STYLE_QUICK_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={visualStyleTab === tab.id}
+                  className="visual-style-tab-button"
+                  data-active={visualStyleTab === tab.id ? "true" : "false"}
+                  onClick={() => setVisualStyleTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
               ))}
             </div>
 
-            <div className="visual-style-section">
-              <div className="visual-style-section-title">跑马灯配色</div>
-              <div className="visual-style-preset-list">
-                {MARQUEE_PALETTE_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className="visual-style-preset"
-                    data-active={visualStyle.marqueePalette === preset.id ? "true" : "false"}
-                    onClick={() =>
-                      updateVisualStyle({
-                        marqueePalette: preset.id,
-                        colors: preset.colors,
-                      })
-                    }
-                  >
-                    <span className="visual-style-preset-head">
+            {visualStyleTab === "card" && (
+              <div className="visual-style-section">
+                <div className="visual-style-section-title">卡片外壳</div>
+                <div className="visual-style-preset-list">
+                  {CARD_STYLE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className="visual-style-preset"
+                      data-active={visualStyle.cardStyle === preset.id ? "true" : "false"}
+                      onClick={() => updateVisualStyle({ cardStyle: preset.id })}
+                    >
                       <span className="visual-style-preset-name">{preset.label}</span>
-                      <span className="marquee-swatch-row" aria-hidden>
-                        {Object.values(preset.colors).slice(0, 6).map((color) => (
-                          <span key={color} style={{ background: color }} />
-                        ))}
-                      </span>
-                    </span>
-                    <span className="visual-style-preset-copy">{preset.description}</span>
-                  </button>
-                ))}
+                      <span className="visual-style-preset-copy">{preset.description}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="visual-style-section">
-              <div className="visual-style-section-title">自定义指标颜色</div>
-              <div className="visual-color-grid">
-                {VISUAL_COLOR_CONTROLS.map(({ key, label }) => (
-                  <label key={key} className="visual-color-control">
-                    <span>{label}</span>
-                    <input
-                      type="color"
-                      value={visualStyle.colors[key]}
-                      onChange={(event) =>
-                        updateVisualStyle({
-                          marqueePalette: "custom",
-                          colors: {
-                            ...visualStyle.colors,
-                            [key]: event.target.value,
+            {visualStyleTab === "dashboard" && (
+              <div className="visual-style-section">
+                <div className="visual-style-dashboard-layout">
+                  <div>
+                  <div className="visual-style-section-title">信息展板</div>
+                  <div className="visual-style-preset-list">
+                    {DASHBOARD_STYLE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className="visual-style-preset"
+                        data-active={
+                          visualStyle.dashboardStyle === preset.id ? "true" : "false"
+                        }
+                        onClick={() => updateVisualStyle({ dashboardStyle: preset.id })}
+                      >
+                        <span className="visual-style-preset-name">{preset.label}</span>
+                        <span className="visual-style-preset-copy">{preset.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                  </div>
+
+                  <div className="visual-style-linked-settings">
+                    {visualStyle.dashboardStyle === "bars" ? (
+                      <>
+                        <div className="visual-style-section-title">数据条细节</div>
+                        <div className="visual-style-preset-list">
+                          {MARQUEE_STYLE_PRESETS.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              className="visual-style-preset"
+                              data-active={
+                                visualStyle.marqueeStyle.preset === preset.id
+                                  ? "true"
+                                  : "false"
+                              }
+                              onClick={() =>
+                                updateVisualStyle({
+                                  marqueeStyle: { ...preset.settings },
+                                })
+                              }
+                            >
+                              <span className="visual-style-preset-name">
+                                {preset.label}
+                              </span>
+                              <span className="visual-style-preset-copy">
+                                {preset.description}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="visual-style-section is-tight">
+                          <MarqueePreviewStrip
+                            className="marquee-style-preview-strip"
+                            style={visualStyle.marqueeStyle}
+                            colors={visualStyle.colors}
+                            height={16}
+                          />
+                          {(
+                            [
+                              ["density", "密度"],
+                              ["radius", "圆角"],
+                              ["glow", "光晕"],
+                              ["motion", "动效"],
+                            ] as const
+                          ).map(([key, label]) => (
+                            <label key={key} className="gradient-range-control">
+                              <span>
+                                <span>{label}</span>
+                                <strong>{visualStyle.marqueeStyle[key]}%</strong>
+                              </span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                value={visualStyle.marqueeStyle[key]}
+                                onChange={(event) =>
+                                  updateVisualStyle({
+                                    marqueeStyle: {
+                                      ...visualStyle.marqueeStyle,
+                                      preset: "custom",
+                                      [key]: Number(event.target.value),
+                                    },
+                                  })
+                                }
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    ) : activeDashboardStyle ? (
+                      <>
+                        <div className="visual-style-section-title">环形样式</div>
+                        <div className="visual-style-preset-list is-gauge-style">
+                          {GAUGE_STYLE_PRESETS.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              className="visual-style-preset"
+                              data-active={
+                                visualStyle.dashboardSettings[activeDashboardStyle]
+                                  .gaugeStyle === preset.id
+                                  ? "true"
+                                  : "false"
+                              }
+                              onClick={() =>
+                                updateVisualStyle({
+                                  dashboardSettings: patchDashboardSetting(
+                                    visualStyle.dashboardSettings,
+                                    activeDashboardStyle,
+                                    "gaugeStyle",
+                                    preset.id,
+                                  ),
+                                })
+                              }
+                            >
+                              <span className="visual-style-preset-name">
+                                {preset.label}
+                              </span>
+                              <span className="visual-style-preset-copy">
+                                {preset.description}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="visual-style-section-title">仪表细节</div>
+                        <label className="gradient-range-control">
+                          <span>
+                            <span>延迟上限</span>
+                            <strong>{visualStyle.radarLatencyMaxMs}ms</strong>
+                          </span>
+                          <input
+                            type="range"
+                            min={RADAR_LATENCY_MAX_MIN_MS}
+                            max={RADAR_LATENCY_MAX_MAX_MS}
+                            step={RADAR_LATENCY_MAX_STEP_MS}
+                            value={visualStyle.radarLatencyMaxMs}
+                            onChange={(event) =>
+                              updateVisualStyle({
+                                radarLatencyMaxMs: Number(event.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        {DASHBOARD_TUNING_CONTROLS[activeDashboardStyle].map(
+                          ({ key, label, max = 100 }) => {
+                            const value = Number(
+                              visualStyle.dashboardSettings[activeDashboardStyle][
+                                key as keyof (typeof visualStyle.dashboardSettings)[typeof activeDashboardStyle]
+                              ],
+                            );
+
+                            return (
+                              <label key={key} className="gradient-range-control">
+                                <span>
+                                  <span>{label}</span>
+                                  <strong>{value}%</strong>
+                                </span>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={max}
+                                  value={value}
+                                  onChange={(event) =>
+                                    updateVisualStyle({
+                                      dashboardSettings: patchDashboardSetting(
+                                        visualStyle.dashboardSettings,
+                                        activeDashboardStyle,
+                                        key,
+                                        Number(event.target.value),
+                                      ),
+                                    })
+                                  }
+                                />
+                              </label>
+                            );
                           },
-                        })
-                      }
-                      aria-label={label}
-                    />
-                  </label>
-                ))}
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {visualStyleTab === "palette" && (
+              <>
+                <div className="visual-style-section">
+                  <div className="visual-style-section-title">跑马灯配色</div>
+                  <div className="visual-style-preset-list">
+                    {MARQUEE_PALETTE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className="visual-style-preset"
+                        data-active={
+                          visualStyle.marqueePalette === preset.id ? "true" : "false"
+                        }
+                        onClick={() =>
+                          updateVisualStyle({
+                            marqueePalette: preset.id,
+                            colors: preset.colors,
+                          })
+                        }
+                      >
+                        <span className="visual-style-preset-head">
+                          <span className="visual-style-preset-name">{preset.label}</span>
+                          <span className="marquee-swatch-row" aria-hidden>
+                            {Object.values(preset.colors).slice(0, 6).map((color) => (
+                              <span key={color} style={{ background: color }} />
+                            ))}
+                          </span>
+                        </span>
+                        <span className="visual-style-preset-copy">{preset.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="visual-style-section">
+                  <div className="visual-style-section-title">自定义指标颜色</div>
+                  <div className="visual-color-grid">
+                    {VISUAL_COLOR_CONTROLS.map(({ key, label }) => (
+                      <label key={key} className="visual-color-control">
+                        <span>{label}</span>
+                        <input
+                          type="color"
+                          value={visualStyle.colors[key]}
+                          onChange={(event) =>
+                            updateVisualStyle({
+                              marqueePalette: "custom",
+                              colors: {
+                                ...visualStyle.colors,
+                                [key]: event.target.value,
+                              },
+                            })
+                          }
+                          aria-label={label}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
         {sortPanelOpen && !collapsed && (
