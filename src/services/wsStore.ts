@@ -276,7 +276,6 @@ function updateTrafficTrendSeries(
 let state: State = emptyState();
 const globalListeners = new Set<Listener>();
 const nodeListeners = new Map<string, Set<Listener>>();
-let visibleNodeUuidsSnapshot: string[] = [];
 let scrollIdleTimer: number | null = null;
 let scrollTrackingStarted = false;
 let scrollActive = false;
@@ -642,19 +641,9 @@ export function getNodeTrafficTrendSnapshot(uuid: string): {
   return trend.snapshot;
 }
 
-export function getVisibleNodeUuidsSnapshot(): string[] {
-  const next = state.order.filter((uuid) => {
+export function getVisibleNodeUuidsSnapshot(includeHiddenNodes = false): string[] {
+  return state.order.filter((uuid) => {
     const node = state.byUuid[uuid];
-    return Boolean(node) && !node.hidden;
+    return Boolean(node) && (includeHiddenNodes || !node.hidden);
   });
-
-  if (
-    next.length === visibleNodeUuidsSnapshot.length &&
-    next.every((uuid, index) => uuid === visibleNodeUuidsSnapshot[index])
-  ) {
-    return visibleNodeUuidsSnapshot;
-  }
-
-  visibleNodeUuidsSnapshot = next;
-  return visibleNodeUuidsSnapshot;
 }

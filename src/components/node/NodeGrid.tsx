@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useVisibleNodes } from "@/hooks/useNode";
+import { useCanSeeHiddenNodes, useVisibleNodes } from "@/hooks/useNode";
 import { useHomepagePingOverview } from "@/hooks/usePingMini";
 import { useNodeSort } from "@/hooks/useNodeSort";
 import { usePublicConfig } from "@/hooks/usePublicConfig";
@@ -16,6 +16,7 @@ import { StatusOverview } from "./StatusOverview";
 
 export function NodeGrid() {
   const nodes = useVisibleNodes();
+  const includeHiddenNodes = useCanSeeHiddenNodes();
   const { data: config } = usePublicConfig();
   const { nodeSort } = useNodeSort();
   const { visualStyle } = useVisualStyle();
@@ -48,7 +49,10 @@ export function NodeGrid() {
       const snapshot = getSnapshot();
       const liveNodes = snapshot.order
         .map((uuid) => snapshot.byUuid[uuid])
-        .filter((node): node is NonNullable<typeof node> => Boolean(node) && !node.hidden);
+        .filter(
+          (node): node is NonNullable<typeof node> =>
+            Boolean(node) && (includeHiddenNodes || !node.hidden),
+        );
       setRealtimeUuids(sortHomepageNodes(liveNodes, customOrder, nodeSort));
     };
 
@@ -58,7 +62,7 @@ export function NodeGrid() {
       nodeSort.realtimeIntervalSeconds * 1000,
     );
     return () => window.clearInterval(timer);
-  }, [customOrder, nodeSortKey, useRealtimeSort, visibleNodeKey]);
+  }, [customOrder, includeHiddenNodes, nodeSortKey, useRealtimeSort, visibleNodeKey]);
 
   const uuids = useMemo(
     () => {
