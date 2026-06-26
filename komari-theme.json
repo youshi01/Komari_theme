@@ -2,9 +2,9 @@
   "name": "komari-theme-YS",
   "short": "komari-theme-YS",
   "description": "Komari theme",
-  "version": "1.1.8-p2",
+  "version": "1.1.8-p3",
   "author": "YS",
-  "url": "https://github.com/YS/komari-theme-YS",
+  "url": "https://github.com/youshi01/Komari_theme",
   "preview": "preview.png",
   "configuration": {
     "type": "redirect",
