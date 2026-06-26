@@ -333,42 +333,42 @@ export const LIQUID_SHAPE_PRESETS: LiquidShapePreset[] = [
   {
     id: "sphere",
     label: "水波圆球",
-    description: "经典透明球体，读数直观、适合默认使用",
+    description: "玻璃球体、水面波纹和轨道环绕，适合默认使用",
   },
   {
     id: "capsule",
     label: "横向胶囊舱",
-    description: "长条圆角容器，速度和容量都有科技感",
+    description: "透明管舱、端部卡扣和流动液面，偏赛博仪器",
   },
   {
     id: "column",
     label: "竖向液柱",
-    description: "量筒式能量柱，占比变化最清晰",
+    description: "试管瓶/量筒式容器，占比变化最清晰",
   },
   {
     id: "lens",
     label: "椭圆透镜",
-    description: "扁平玻璃透镜，更贴合紧凑卡片",
+    description: "凸透镜玻璃舱，折射和扫描感更强",
   },
   {
     id: "segmented",
     label: "分段胶囊",
-    description: "分格点亮与液面波动结合，监控感更强",
+    description: "分格液舱与液面波动结合，监控感更强",
   },
   {
     id: "crystal",
     label: "六边晶核",
-    description: "硬朗多边形玻璃舱，偏科幻 HUD",
+    description: "多面晶体容器，偏科幻 HUD 和能量核心",
   },
   {
     id: "drop",
     label: "悬浮水滴",
-    description: "水滴形液体核心，低负载时更灵动",
+    description: "悬浮水滴容器，带轨道和底座漂浮感",
   },
   {
     id: "ring",
     label: "环形液舱",
-    description: "圆环槽液位包围数值，和仪表风格呼应",
+    description: "环形槽液体围绕数值流动，和仪表风格呼应",
   },
 ];
 

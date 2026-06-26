@@ -46,7 +46,7 @@ import {
   shouldAnimateMarqueeStyle,
 } from "./marqueeStyle";
 import { clsx } from "clsx";
-import type { PingOverviewBucket, TrafficTrendSample } from "@/types/komari";
+import type { TrafficTrendSample } from "@/types/komari";
 import type { TrafficRateDisplay } from "@/utils/format";
 import type {
   CardLayoutId,
@@ -58,488 +58,27 @@ import type {
   MarqueeStyleSettings,
 } from "@/hooks/useVisualStyle";
 
-type GaugeDashboardStyleId = Exclude<DashboardStylePresetId, "bars" | "liquid">;
-
-function buildSubtitle(parts: Array<string | null | undefined>) {
-  return parts
-    .map((part) => part?.trim())
-    .filter((part): part is string => Boolean(part))
-    .join(" · ");
-}
-
-function formatBucketWindow(bucket: PingOverviewBucket | null) {
-  if (!bucket || bucket.startAt == null || bucket.endAt == null) {
-    return null;
-  }
-  const start = new Date(bucket.startAt);
-  const end = new Date(bucket.endAt);
-  return `${start.getHours().toString().padStart(2, "0")}:${start
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")} - ${end.getHours().toString().padStart(2, "0")}:${end
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}`;
-}
-
-function formatLatencyBucketSummary(bucket: PingOverviewBucket | null) {
-  if (!bucket) return "—";
-  if (bucket.value != null) {
-    return `${bucket.value.toFixed(1)} ms`;
-  }
-  return bucket.total > 0 ? "失败" : "无样本";
-}
-
-function formatLossBucketSummary(bucket: PingOverviewBucket | null) {
-  if (!bucket) return "—";
-  if ((bucket.total ?? 0) <= 0 || bucket.loss == null) {
-    return "无样本";
-  }
-  return `${bucket.loss.toFixed(1)}% ${bucket.lost}/${bucket.total}`;
-}
-
-function clampFraction(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(1, value));
-}
-
-function getTrafficRadarLimit(rate: TrafficRateDisplay) {
-  if (rate.unit === "Tbps") {
-    return { bitsPerSec: 10_000_000_000_000, label: "10 Tbps" };
-  }
-  if (rate.unit === "Gbps") {
-    return { bitsPerSec: 1_000_000_000_000, label: "1 Tbps" };
-  }
-  if (rate.unit === "Mbps") {
-    return { bitsPerSec: 1_000_000_000, label: "1 Gbps" };
-  }
-  return { bitsPerSec: 1_000_000, label: "1 Mbps" };
-}
-
-function scalePercent(value: number, min: number, max: number, inputMax = 100) {
-  const clamped = Math.max(0, Math.min(inputMax, value));
-  return min + (max - min) * (clamped / inputMax);
-}
-
-function scaleBoostedPercent(value: number, min: number, maxAt100: number, maxAt200: number) {
-  const clamped = Math.max(0, Math.min(200, value));
-  if (clamped <= 100) {
-    return min + (maxAt100 - min) * (clamped / 100);
-  }
-  return maxAt100 + (maxAt200 - maxAt100) * ((clamped - 100) / 100);
-}
-
-function dashboardMotionStyle(value: number, transitionMin: number, transitionMax: number) {
-  return {
-    "--radar-motion-ms": `${Math.round(
-      scaleBoostedPercent(value, transitionMin, transitionMax, transitionMax + 220),
-    )}ms`,
-    "--radar-motion-pulse-opacity": scaleBoostedPercent(value, 0, 0.12, 0.32).toFixed(3),
-    "--radar-pulse-ms": `${Math.round(
-      scaleBoostedPercent(value, 2600, 1700, 980),
-    )}ms`,
-  };
-}
-
-function dashboardGaugePreset(
-  variant: GaugeDashboardStyleId,
-  settings: DashboardSettings,
-): GaugeStylePresetId {
-  return settings[variant].gaugeStyle;
-}
-
-function getSegmentTrackStyle(gaugeStyle: GaugeStylePresetId) {
-  if (gaugeStyle === "fragment") {
-    return { strokeDasharray: "4 2 10 4 3 3 13 5 7 4" } as CSSProperties;
-  }
-  if (gaugeStyle === "pulse") {
-    return { strokeDasharray: "1 3.2" } as CSSProperties;
-  }
-  if (gaugeStyle === "circuit") {
-    return { strokeDasharray: "5 7" } as CSSProperties;
-  }
-  if (gaugeStyle === "scan") {
-    return { strokeDasharray: "1 5.4" } as CSSProperties;
-  }
-  if (gaugeStyle !== "segmented") return undefined;
-  return { strokeDasharray: "2.4 5.1" } as CSSProperties;
-}
-
-function getSegmentTickStyle(gaugeStyle: GaugeStylePresetId) {
-  if (gaugeStyle === "pulse") {
-    return { strokeDasharray: "0.8 3.35" } as CSSProperties;
-  }
-  if (gaugeStyle === "scan") {
-    return { strokeDasharray: "1 6.2" } as CSSProperties;
-  }
-  if (gaugeStyle !== "segmented") return undefined;
-  return { strokeDasharray: "1 7.35" } as CSSProperties;
-}
-
-function getProgressStyle(percent: number, gaugeStyle: GaugeStylePresetId) {
-  if (gaugeStyle === "fragment") {
-    return { strokeDasharray: `${Math.max(0, percent - 1)} 1 0 100` } as CSSProperties;
-  }
-  if (gaugeStyle === "scan") {
-    return { strokeDasharray: `${Math.max(0, percent - 4)} 1 3 100` } as CSSProperties;
-  }
-  return { strokeDasharray: `${percent} 100` } as CSSProperties;
-}
-
-function getGlowStyle(percent: number, gaugeStyle: GaugeStylePresetId) {
-  if (gaugeStyle === "scan") {
-    return { strokeDasharray: `${Math.max(0, percent - 12)} 3 9 100` } as CSSProperties;
-  }
-  return { strokeDasharray: `${percent} 100` } as CSSProperties;
-}
-
-function hashString(value: string) {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
-}
-
-function getRadarScanDelay(seed: string, index: number) {
-  const seedOffset = hashString(seed) % 1600;
-  return `-${seedOffset + index * 280}ms`;
-}
-
-function ringPoint(percent: number, radius = 38) {
-  const angle = (percent * 3.6 * Math.PI) / 180;
-  return {
-    x: 50 + radius * Math.cos(angle),
-    y: 50 + radius * Math.sin(angle),
-  };
-}
-
-function arcPoint(percent: number, radius = 46) {
-  const angle = ((180 - percent * 1.8) * Math.PI) / 180;
-  return {
-    x: 60 + radius * Math.cos(angle),
-    y: 58 - radius * Math.sin(angle),
-  };
-}
-
-function gaugeHeadPoint(
-  variant: GaugeDashboardStyleId,
-  percent: number,
-  radius?: number,
-) {
-  return variant === "ring" ? ringPoint(percent, radius) : arcPoint(percent, radius);
-}
-
-function renderRingCircle(className: string, radius: number, style?: CSSProperties) {
-  return (
-    <circle
-      className={className}
-      cx="50"
-      cy="50"
-      r={radius}
-      pathLength={100}
-      style={style}
-    />
-  );
-}
-
-function renderArcPath(className: string, style?: CSSProperties) {
-  return (
-    <path
-      className={className}
-      d="M 14 58 A 46 46 0 0 1 106 58"
-      pathLength={100}
-      style={style}
-    />
-  );
-}
-
-function renderGaugePath(
-  variant: GaugeDashboardStyleId,
-  className: string,
-  style?: CSSProperties,
-  radius = 38,
-) {
-  return variant === "ring"
-    ? renderRingCircle(className, radius, style)
-    : renderArcPath(className, style);
-}
-
-function renderGaugeBackArt(
-  variant: GaugeDashboardStyleId,
-  gaugeStyle: GaugeStylePresetId,
-  percent: number,
-) {
-  if (gaugeStyle === "fragment") {
-    return (
-      <>
-        {renderGaugePath(variant, "radar-gauge-art-fragments", {
-          strokeDasharray: "6 3 13 5 4 3 16 5 8 4",
-          strokeDashoffset: `${100 - percent}`,
-        })}
-        {renderGaugePath(variant, "radar-gauge-art-fragments is-inner", {
-          strokeDasharray: "3 8 9 5 5 7",
-          strokeDashoffset: `${percent / 2}`,
-        }, 29)}
-      </>
-    );
-  }
-
-  if (gaugeStyle === "pulse") {
-    return (
-      <>
-        {renderGaugePath(variant, "radar-gauge-art-teeth", {
-          strokeDasharray: "0.9 3.4",
-        }, 44)}
-        {renderGaugePath(variant, "radar-gauge-art-teeth is-inner", {
-          strokeDasharray: "0.8 6.2",
-          strokeDashoffset: `${percent / 4}`,
-        }, 28)}
-      </>
-    );
-  }
-
-  if (gaugeStyle === "liquid") {
-    return (
-      <>
-        {renderGaugePath(variant, "radar-gauge-art-liquid-bed", undefined, 38)}
-        {renderGaugePath(variant, "radar-gauge-art-liquid-vein", {
-          strokeDasharray: `${Math.max(6, percent - 14)} 100`,
-        }, 30)}
-      </>
-    );
-  }
-
-  if (gaugeStyle === "dual") {
-    return (
-      <>
-        {renderGaugePath(variant, "radar-gauge-art-dual is-outer", {
-          strokeDasharray: `${Math.min(100, percent + 12)} 100`,
-          strokeDashoffset: "-7",
-        }, 45)}
-        {renderGaugePath(variant, "radar-gauge-art-dual is-inner", {
-          strokeDasharray: `${Math.max(0, percent - 9)} 100`,
-          strokeDashoffset: "9",
-        }, 29)}
-      </>
-    );
-  }
-
-  if (gaugeStyle === "aurora") {
-    return (
-      <>
-        {renderGaugePath(variant, "radar-gauge-art-aurora-ribbon", {
-          strokeDasharray: "27 5 18 7 18 100",
-          strokeDashoffset: `${100 - percent}`,
-        }, 35)}
-        {renderGaugePath(variant, "radar-gauge-art-aurora-accent", {
-          strokeDasharray: `${Math.max(0, percent - 8)} 100`,
-        }, 43)}
-      </>
-    );
-  }
-
-  if (gaugeStyle === "scan") {
-    return (
-      <>
-        {renderGaugePath(variant, "radar-gauge-art-scan-dots", {
-          strokeDasharray: "1 5.8",
-        }, 42)}
-        {renderGaugePath(variant, "radar-gauge-art-scan-trail", {
-          strokeDasharray: "10 3 7 4 18 100",
-        })}
-      </>
-    );
-  }
-
-  return null;
-}
-
-function renderCircuitArt(
-  variant: GaugeDashboardStyleId,
-) {
-  if (variant === "ring") {
-    return (
-      <g className="radar-gauge-circuit">
-        <line x1="50" y1="12" x2="50" y2="3" />
-        <line x1="83" y1="31" x2="93" y2="25" />
-        <line x1="87" y1="58" x2="98" y2="61" />
-        <line x1="22" y1="75" x2="13" y2="83" />
-        <line x1="12" y1="49" x2="2" y2="49" />
-        <circle cx="50" cy="3" r="2.8" />
-        <circle cx="93" cy="25" r="2.6" />
-        <circle cx="98" cy="61" r="3" />
-        <circle cx="13" cy="83" r="2.6" />
-        <circle cx="2" cy="49" r="2.8" />
-      </g>
-    );
-  }
-
-  return (
-    <g className="radar-gauge-circuit">
-      <line x1="16" y1="58" x2="6" y2="58" />
-      <line x1="35" y1="28" x2="29" y2="18" />
-      <line x1="60" y1="12" x2="60" y2="2" />
-      <line x1="85" y1="28" x2="91" y2="18" />
-      <line x1="104" y1="58" x2="114" y2="58" />
-      <circle cx="6" cy="58" r="2.8" />
-      <circle cx="29" cy="18" r="2.6" />
-      <circle cx="60" cy="2" r="2.8" />
-      <circle cx="91" cy="18" r="2.6" />
-      <circle cx="114" cy="58" r="2.8" />
-    </g>
-  );
-}
-
-function renderWaveArt(
-  variant: GaugeDashboardStyleId,
-) {
-  if (variant === "ring") {
-    return (
-      <g className="radar-gauge-wave">
-        <line x1="50" y1="3" x2="50" y2="-7" />
-        <line x1="72" y1="9" x2="77" y2="-1" />
-        <line x1="89" y1="26" x2="99" y2="20" />
-        <line x1="97" y1="50" x2="109" y2="50" />
-        <line x1="89" y1="74" x2="99" y2="80" />
-        <line x1="28" y1="9" x2="23" y2="-1" />
-        <line x1="11" y1="26" x2="1" y2="20" />
-        <line x1="3" y1="50" x2="-9" y2="50" />
-        <line x1="11" y1="74" x2="1" y2="80" />
-      </g>
-    );
-  }
-
-  return (
-    <g className="radar-gauge-wave">
-      <line x1="14" y1="58" x2="2" y2="58" />
-      <line x1="25" y1="35" x2="14" y2="28" />
-      <line x1="43" y1="18" x2="37" y2="6" />
-      <line x1="60" y1="12" x2="60" y2="-2" />
-      <line x1="77" y1="18" x2="83" y2="6" />
-      <line x1="95" y1="35" x2="106" y2="28" />
-      <line x1="106" y1="58" x2="118" y2="58" />
-    </g>
-  );
-}
-
-function renderGaugeFrontArt(
-  variant: GaugeDashboardStyleId,
-  gaugeStyle: GaugeStylePresetId,
-  percent: number,
-) {
-  const head = gaugeHeadPoint(variant, percent);
-
-  if (gaugeStyle === "liquid") {
-    const bubbleA = gaugeHeadPoint(variant, Math.max(0, percent - 18), 32);
-    const bubbleB = gaugeHeadPoint(variant, Math.max(0, percent - 36), 25);
-    return (
-      <g className="radar-gauge-liquid-head">
-        <circle cx={bubbleB.x} cy={bubbleB.y} r="2.4" />
-        <circle cx={bubbleA.x} cy={bubbleA.y} r="3.4" />
-        <circle cx={head.x} cy={head.y} r="5.6" />
-      </g>
-    );
-  }
-
-  if (gaugeStyle === "circuit") {
-    return renderCircuitArt(variant);
-  }
-
-  if (gaugeStyle === "wave") {
-    return renderWaveArt(variant);
-  }
-
-  if (gaugeStyle === "scan") {
-    const trailA = gaugeHeadPoint(variant, Math.max(0, percent - 8));
-    const trailB = gaugeHeadPoint(variant, Math.max(0, percent - 18));
-    return (
-      <g className="radar-gauge-scan-head">
-        <circle cx={trailB.x} cy={trailB.y} r="1.8" />
-        <circle cx={trailA.x} cy={trailA.y} r="2.8" />
-        <circle cx={head.x} cy={head.y} r="5" />
-      </g>
-    );
-  }
-
-  return null;
-}
-
-function scalePercentLegacy(value: number, min: number, max: number) {
-  return scalePercent(value, min, max);
-}
-
-function dashboardGaugeStyle(
-  variant: GaugeDashboardStyleId,
-  settings: DashboardSettings,
-) {
-  if (variant === "ring") {
-    const ring = settings.ring;
-    return {
-      "--radar-stroke-width": `${scalePercentLegacy(ring.thickness, 5.5, 12).toFixed(1)}px`,
-      "--radar-glow-width": `${scaleBoostedPercent(ring.glow, 9, 19, 30).toFixed(1)}px`,
-      "--radar-glow-opacity": scaleBoostedPercent(ring.glow, 0.04, 0.24, 0.42).toFixed(3),
-      ...dashboardMotionStyle(ring.motion, 240, 860),
-      "--radar-value-size": `${scalePercentLegacy(ring.centerScale, 13, 18).toFixed(1)}px`,
-      "--radar-grid-gap": "10px",
-      "--radar-padding-y": "8px",
-      "--radar-padding-x": "7px",
-    } as CSSProperties;
-  }
-
-  if (variant === "dial") {
-    const dial = settings.dial;
-    return {
-      "--radar-stroke-width": `${scalePercentLegacy(dial.thickness, 5.5, 12).toFixed(1)}px`,
-      "--radar-glow-width": `${scaleBoostedPercent(dial.glow, 9, 18, 29).toFixed(1)}px`,
-      "--radar-glow-opacity": scaleBoostedPercent(dial.glow, 0.04, 0.22, 0.4).toFixed(3),
-      ...dashboardMotionStyle(dial.motion, 220, 920),
-      "--radar-needle-width": `${scalePercentLegacy(dial.needle, 1.8, 5.6).toFixed(1)}px`,
-      "--radar-tick-opacity": scalePercentLegacy(dial.ticks, 0.08, 0.74).toFixed(3),
-      "--radar-tick-width": `${scalePercentLegacy(dial.ticks, 1, 2.8).toFixed(1)}px`,
-      "--radar-value-size": "15px",
-      "--radar-grid-gap": "10px",
-      "--radar-padding-y": "8px",
-      "--radar-padding-x": "7px",
-    } as CSSProperties;
-  }
-
-  const arc = settings.arc;
-  return {
-    "--radar-stroke-width": `${scalePercentLegacy(arc.thickness, 5.5, 13).toFixed(1)}px`,
-    "--radar-glow-width": `${scaleBoostedPercent(arc.glow, 9, 20, 32).toFixed(1)}px`,
-    "--radar-glow-opacity": scaleBoostedPercent(arc.glow, 0.04, 0.25, 0.44).toFixed(3),
-    ...dashboardMotionStyle(arc.motion, 220, 840),
-    "--radar-grid-gap": `${scalePercentLegacy(arc.compactness, 14, 8).toFixed(1)}px`,
-    "--radar-padding-y": `${scalePercentLegacy(arc.compactness, 10, 6.5).toFixed(1)}px`,
-    "--radar-padding-x": `${scalePercentLegacy(arc.compactness, 9, 6).toFixed(1)}px`,
-    "--radar-value-size": "15px",
-  } as CSSProperties;
-}
-
-function liquidDashboardStyle(settings: LiquidDashboardSettings) {
-  return {
-    "--liquid-wave-scale": scalePercentLegacy(settings.wave, 0.45, 1.55).toFixed(3),
-    "--liquid-glass-opacity": scalePercentLegacy(settings.glass, 0.24, 0.88).toFixed(3),
-    "--liquid-glow-extra": scaleBoostedPercent(settings.glow, 0, 0.16, 0.38).toFixed(3),
-    "--liquid-bottom-mix": `${Math.round(scaleBoostedPercent(settings.glow, 7, 12, 19))}%`,
-    "--liquid-shadow-mix": `${Math.round(scaleBoostedPercent(settings.glow, 52, 68, 88))}%`,
-    "--liquid-svg-glow-mix": `${Math.round(scaleBoostedPercent(settings.glow, 18, 34, 58))}%`,
-    "--liquid-fill-opacity": scaleBoostedPercent(settings.glow, 0.62, 0.78, 0.96).toFixed(3),
-    "--liquid-wave-opacity": scaleBoostedPercent(settings.glow, 0.72, 0.86, 0.98).toFixed(3),
-    "--liquid-shine-opacity": scalePercentLegacy(settings.glass, 0.08, 0.28).toFixed(3),
-    "--liquid-segment-opacity": scalePercentLegacy(settings.glass, 0.18, 0.56).toFixed(3),
-    "--liquid-texture-opacity": scalePercentLegacy(settings.texture, 0, 0.48).toFixed(3),
-    "--liquid-hud-opacity": scalePercentLegacy(settings.texture, 0.18, 0.78).toFixed(3),
-    "--liquid-panel-opacity": scalePercentLegacy(settings.glass, 0.18, 0.52).toFixed(3),
-  } as CSSProperties;
-}
-
-function getLiquidMotionMs(percent: number, settings: LiquidDashboardSettings) {
-  const base = scalePercent(percent, 5200, 1800);
-  const multiplier = scaleBoostedPercent(settings.motion, 1.35, 0.72, 0.42);
-  return Math.round(base * multiplier);
-}
+import {
+  buildSubtitle,
+  clampFraction,
+  dashboardGaugePreset,
+  dashboardGaugeStyle,
+  formatBucketWindow,
+  formatLatencyBucketSummary,
+  formatLossBucketSummary,
+  getGlowStyle,
+  getLiquidMotionMs,
+  getProgressStyle,
+  getRadarScanDelay,
+  getSegmentTickStyle,
+  getSegmentTrackStyle,
+  getTrafficRadarLimit,
+  liquidDashboardStyle,
+  renderGaugeBackArt,
+  renderGaugeFrontArt,
+  scalePercentLegacy,
+  type GaugeDashboardStyleId,
+} from "./dashboardHelpers";
 
 export const NodeCard = memo(function NodeCard({
   uuid,
@@ -1277,19 +816,29 @@ function LiquidMetricPanel({
 
 function renderLiquidShape(shape: LiquidShapeId, className: string) {
   if (shape === "capsule" || shape === "segmented") {
-    return <rect className={className} x="8" y="26" width="84" height="48" rx="24" />;
+    return <rect className={className} x="7" y="28" width="86" height="44" rx="22" />;
   }
   if (shape === "column") {
-    return <rect className={className} x="29" y="10" width="42" height="80" rx="16" />;
+    return (
+      <path
+        className={className}
+        d="M38 8 H62 C65 8 67 10 67 13 V20 C67 22 65 24 63 25 V30 C69 36 72 44 72 71 C72 84 63 92 50 92 C37 92 28 84 28 71 C28 44 31 36 37 30 V25 C35 24 33 22 33 20 V13 C33 10 35 8 38 8 Z"
+      />
+    );
   }
   if (shape === "lens") {
-    return <ellipse className={className} cx="50" cy="50" rx="42" ry="28" />;
+    return (
+      <path
+        className={className}
+        d="M8 50 C18 28 36 20 50 20 C64 20 82 28 92 50 C82 72 64 80 50 80 C36 80 18 72 8 50 Z"
+      />
+    );
   }
   if (shape === "crystal") {
     return (
       <polygon
         className={className}
-        points="50,8 82,26 82,70 50,92 18,70 18,26"
+        points="50,7 83,26 78,72 50,94 22,72 17,26"
       />
     );
   }
@@ -1311,29 +860,127 @@ function renderLiquidShape(shape: LiquidShapeId, className: string) {
       />
     );
   }
-  return <circle className={className} cx="50" cy="50" r="38" />;
+  return <circle className={className} cx="50" cy="50" r="40" />;
+}
+
+function getLiquidSurface(shape: LiquidShapeId) {
+  if (shape === "capsule" || shape === "segmented") return { rx: 35, ry: 4.2 };
+  if (shape === "column") return { rx: 18, ry: 3.8 };
+  if (shape === "lens") return { rx: 36, ry: 5 };
+  if (shape === "crystal") return { rx: 28, ry: 4.4 };
+  if (shape === "drop") return { rx: 24, ry: 4.2 };
+  if (shape === "ring") return { rx: 30, ry: 3.6 };
+  return { rx: 31, ry: 5 };
+}
+
+function renderLiquidContainerFrame(shape: LiquidShapeId) {
+  if (shape === "sphere") {
+    return (
+      <g className="liquid-gauge-frame is-sphere">
+        <ellipse className="liquid-frame-shadow" cx="50" cy="91" rx="29" ry="5" />
+        <circle className="liquid-frame-rim" cx="50" cy="50" r="43" />
+        <ellipse className="liquid-frame-latitude" cx="50" cy="50" rx="39" ry="12" />
+        <ellipse className="liquid-frame-latitude is-upper" cx="50" cy="38" rx="31" ry="8" />
+        <path className="liquid-frame-stand" d="M35 88 H65 L70 96 H30 Z" />
+        <circle className="liquid-frame-bolt is-one" cx="23" cy="50" r="1.8" />
+        <circle className="liquid-frame-bolt is-two" cx="77" cy="50" r="1.8" />
+      </g>
+    );
+  }
+
+  if (shape === "column") {
+    return (
+      <g className="liquid-gauge-frame is-column">
+        <ellipse className="liquid-frame-shadow" cx="50" cy="92" rx="24" ry="5" />
+        <rect className="liquid-frame-cap" x="35" y="5" width="30" height="9" rx="4" />
+        <rect className="liquid-frame-neck" x="38" y="13" width="24" height="13" rx="5" />
+        <path className="liquid-frame-rim" d="M38 8 H62 C65 8 67 10 67 13 V20 C67 22 65 24 63 25 V30 C69 36 72 44 72 71 C72 84 63 92 50 92 C37 92 28 84 28 71 C28 44 31 36 37 30 V25 C35 24 33 22 33 20 V13 C33 10 35 8 38 8 Z" />
+        <path className="liquid-frame-base" d="M31 83 C39 91 61 91 69 83" />
+        {[32, 44, 56, 68, 80].map((y) => (
+          <line key={y} className="liquid-frame-mark" x1="25" y1={y} x2="33" y2={y} />
+        ))}
+      </g>
+    );
+  }
+
+  if (shape === "capsule" || shape === "segmented") {
+    return (
+      <g className="liquid-gauge-frame is-capsule">
+        <rect className="liquid-frame-rim" x="5" y="26" width="90" height="48" rx="24" />
+        <rect className="liquid-frame-inner" x="12" y="33" width="76" height="34" rx="17" />
+        <path className="liquid-frame-rail" d="M16 22 H84 M16 78 H84" />
+        <path className="liquid-frame-collar is-left" d="M13 32 V68" />
+        <path className="liquid-frame-collar is-right" d="M87 32 V68" />
+        {[20, 80].map((x) => (
+          <circle key={x} className="liquid-frame-bolt" cx={x} cy="26" r="1.8" />
+        ))}
+      </g>
+    );
+  }
+
+  if (shape === "lens") {
+    return (
+      <g className="liquid-gauge-frame is-lens">
+        <path className="liquid-frame-rim" d="M7 50 C18 26 36 18 50 18 C64 18 82 26 93 50 C82 74 64 82 50 82 C36 82 18 74 7 50 Z" />
+        <path className="liquid-frame-refraction" d="M19 50 C30 39 39 35 50 35 C61 35 70 39 81 50" />
+        <path className="liquid-frame-refraction is-lower" d="M19 50 C30 61 39 65 50 65 C61 65 70 61 81 50" />
+        <circle className="liquid-frame-bolt is-one" cx="13" cy="50" r="2" />
+        <circle className="liquid-frame-bolt is-two" cx="87" cy="50" r="2" />
+      </g>
+    );
+  }
+
+  if (shape === "crystal") {
+    return (
+      <g className="liquid-gauge-frame is-crystal">
+        <polygon className="liquid-frame-rim" points="50,5 86,25 80,74 50,96 20,74 14,25" />
+        <path className="liquid-frame-facet" d="M50 5 L50 96 M14 25 L80 74 M86 25 L20 74 M30 15 L70 85 M70 15 L30 85" />
+        <polygon className="liquid-frame-inner" points="50,16 74,31 70,66 50,83 30,66 26,31" />
+      </g>
+    );
+  }
+
+  if (shape === "drop") {
+    return (
+      <g className="liquid-gauge-frame is-drop">
+        <ellipse className="liquid-frame-shadow" cx="50" cy="90" rx="25" ry="5" />
+        <path className="liquid-frame-rim" d="M50 6 C68 28 82 43 82 62 A32 32 0 1 1 18 62 C18 43 32 28 50 6 Z" />
+        <ellipse className="liquid-frame-orbit" cx="50" cy="62" rx="40" ry="10" />
+        <path className="liquid-frame-stand" d="M39 89 H61 L66 96 H34 Z" />
+      </g>
+    );
+  }
+
+  return (
+    <g className="liquid-gauge-frame is-ring">
+      <circle className="liquid-frame-rim" cx="50" cy="50" r="45" />
+      <circle className="liquid-frame-inner" cx="50" cy="50" r="24" />
+      <circle className="liquid-frame-latitude" cx="50" cy="50" r="34" />
+      <path className="liquid-frame-collar" d="M50 4 V17 M50 83 V96 M4 50 H17 M83 50 H96" />
+    </g>
+  );
 }
 
 function renderLiquidShine(shape: LiquidShapeId) {
   if (shape === "capsule" || shape === "segmented") {
-    return <ellipse className="liquid-gauge-shine" cx="35" cy="38" rx="18" ry="4.5" />;
+    return <path className="liquid-gauge-shine" d="M21 38 C35 31 64 31 79 38" />;
   }
   if (shape === "column") {
-    return <ellipse className="liquid-gauge-shine" cx="42" cy="24" rx="9" ry="4" />;
+    return <path className="liquid-gauge-shine" d="M40 21 C46 17 55 17 61 21 M39 34 C43 31 47 31 51 34" />;
   }
   if (shape === "lens") {
-    return <ellipse className="liquid-gauge-shine" cx="37" cy="38" rx="17" ry="4.5" />;
+    return <path className="liquid-gauge-shine" d="M22 43 C35 30 64 28 79 43" />;
   }
   if (shape === "crystal") {
-    return <path className="liquid-gauge-shine" d="M35 27 L50 16 L64 27 L49 31 Z" />;
+    return <path className="liquid-gauge-shine" d="M35 27 L50 16 L64 27 L49 31 Z M30 44 L43 36" />;
   }
   if (shape === "drop") {
-    return <ellipse className="liquid-gauge-shine" cx="39" cy="39" rx="11" ry="5" transform="rotate(-28 39 39)" />;
+    return <path className="liquid-gauge-shine" d="M38 35 C44 27 52 23 58 22 M32 54 C35 45 41 40 48 38" />;
   }
   if (shape === "ring") {
     return <path className="liquid-gauge-shine" d="M26 38 A28 28 0 0 1 47 21" />;
   }
-  return <ellipse className="liquid-gauge-shine" cx="38" cy="31" rx="13" ry="5" />;
+  return <path className="liquid-gauge-shine" d="M28 39 C34 25 52 18 68 25" />;
 }
 
 function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
@@ -1506,6 +1153,8 @@ function LiquidGauge({
   const realValue = detailText ?? `${valueText}${unit ? ` ${unit}` : ""}`;
   const title = `${label} ${realValue} · ${rawPercent}% · ${limitLabel}`;
   const clipId = useId().replace(/:/g, "");
+  const liquidGradientId = `${clipId}-liquid`;
+  const waveGradientId = `${clipId}-wave`;
   const pressure = empty
     ? "empty"
     : warning || rawPercent >= 90
@@ -1522,13 +1171,7 @@ function LiquidGauge({
     `S 118 ${(fillY + numericWaveAmp).toFixed(2)} 138 ${fillY.toFixed(2)}`,
     "L 138 104 L -42 104 Z",
   ].join(" ");
-  const wavePathAlt = [
-    `M -42 ${(fillY + 4).toFixed(2)}`,
-    `C -18 ${(fillY + numericWaveAmp + 4).toFixed(2)} 4 ${(fillY - numericWaveAmp + 4).toFixed(2)} 28 ${(fillY + 4).toFixed(2)}`,
-    `S 74 ${(fillY + numericWaveAmp + 4).toFixed(2)} 98 ${(fillY + 4).toFixed(2)}`,
-    `S 132 ${(fillY - numericWaveAmp + 4).toFixed(2)} 154 ${(fillY + 4).toFixed(2)}`,
-    "L 154 104 L -42 104 Z",
-  ].join(" ");
+  const surface = getLiquidSurface(shape);
 
   return (
     <div
@@ -1561,23 +1204,40 @@ function LiquidGauge({
       </div>
       <svg className="liquid-gauge-svg" viewBox="0 0 100 100" aria-hidden>
         <defs>
+          <linearGradient id={liquidGradientId} x1="20%" y1="0%" x2="82%" y2="100%">
+            <stop offset="0%" stopColor="white" stopOpacity="0.35" />
+            <stop offset="32%" stopColor="var(--liquid-color)" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="var(--liquid-color)" stopOpacity="0.52" />
+          </linearGradient>
+          <linearGradient id={waveGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="var(--liquid-color)" stopOpacity="0.78" />
+            <stop offset="48%" stopColor="white" stopOpacity="0.52" />
+            <stop offset="100%" stopColor="var(--liquid-color)" stopOpacity="0.88" />
+          </linearGradient>
           <clipPath id={clipId}>
             {renderLiquidShape(shape, "liquid-gauge-clip")}
           </clipPath>
         </defs>
+        {renderLiquidContainerFrame(shape)}
         {renderLiquidShape(shape, "liquid-gauge-vessel")}
         <g clipPath={`url(#${clipId})`}>
           <rect
             className="liquid-gauge-fill"
-            x="12"
+            x="-12"
             y={fillY}
-            width="76"
-            height={Math.max(0, 88 - fillY)}
+            width="124"
+            height={Math.max(0, 110 - fillY)}
+            fill={`url(#${liquidGradientId})`}
           />
-          <path className="liquid-gauge-wave is-back" d={wavePathAlt} />
-          <path className="liquid-gauge-wave" d={wavePath} />
+          <path className="liquid-gauge-wave" d={wavePath} fill={`url(#${waveGradientId})`} />
+          <ellipse
+            className="liquid-gauge-surface"
+            cx="50"
+            cy={fillY}
+            rx={surface.rx}
+            ry={surface.ry}
+          />
           <circle className="liquid-gauge-bubble is-one" cx="68" cy={Math.max(18, fillY + 16)} r="2.5" />
-          <circle className="liquid-gauge-bubble is-two" cx="34" cy={Math.max(24, fillY + 28)} r="1.9" />
         </g>
         {shape === "segmented" && (
           <g className="liquid-gauge-segments">

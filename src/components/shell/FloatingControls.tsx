@@ -10,7 +10,6 @@ import {
   Layers,
   Monitor,
   Moon,
-  Palette,
   Settings,
   SlidersHorizontal,
   Sun,
@@ -22,6 +21,7 @@ import { useBackgroundBoardToggle } from "@/hooks/useBackgroundBoardToggle";
 import { useNodeSort } from "@/hooks/useNodeSort";
 import {
   GRADIENT_BACKGROUND_PRESETS,
+  normalizeGradientBackgroundSettings,
   presetToGradientSettings,
   useGradientBackground,
 } from "@/hooks/useGradientBackground";
@@ -70,6 +70,7 @@ const APPEARANCE_OPTIONS = [
 const VISUAL_STYLE_QUICK_TABS = [
   { id: "card", label: "卡片外壳" },
   { id: "dashboard", label: "信息展板" },
+  { id: "gradient", label: "渐变背板" },
   { id: "palette", label: "配色" },
 ] as const;
 type VisualStyleQuickTab = (typeof VISUAL_STYLE_QUICK_TABS)[number]["id"];
@@ -105,14 +106,13 @@ export function FloatingControls() {
   const { failureStreak } = useNodeStoreStatus();
   const [searchParams] = useSearchParams();
   const [collapsed, setCollapsed] = useState(true);
-  const [gradientPanelOpen, setGradientPanelOpen] = useState(false);
   const [stylePanelOpen, setStylePanelOpen] = useState(false);
   const [sortPanelOpen, setSortPanelOpen] = useState(false);
   const [applyingGlobalVisualStyle, setApplyingGlobalVisualStyle] = useState(false);
   const [globalVisualStyleStatus, setGlobalVisualStyleStatus] = useState<string | null>(null);
   const [visualStyleTab, setVisualStyleTab] =
     useState<VisualStyleQuickTab>("card");
-  const anyPanelOpen = gradientPanelOpen || stylePanelOpen || sortPanelOpen;
+  const anyPanelOpen = stylePanelOpen || sortPanelOpen;
   const showAdmin = config?.theme_settings?.enableAdminButton !== false;
   const showThemeManage = Boolean(me?.logged_in);
   const canApplyGlobalVisualStyle = showThemeManage && Boolean(config?.theme);
@@ -144,6 +144,16 @@ export function FloatingControls() {
     visualStyle.dashboardStyle === "dial"
       ? visualStyle.dashboardStyle
       : null;
+  const stylePanelSourceLabel =
+    visualStyleTab === "gradient"
+      ? `${gradientBackground.enabled ? "已启用" : "已关闭"} · ${gradientBackgroundSourceLabel}`
+      : visualStyleSourceLabel;
+  const restoreStylePanelDefaults =
+    visualStyleTab === "gradient" ? clearLocalGradientBackground : clearLocalVisualStyle;
+  const hasLocalStylePanelSettings =
+    visualStyleTab === "gradient" ? hasLocalGradientBackground : hasLocalVisualStyle;
+  const restoreStylePanelTitle =
+    hasLocalStylePanelSettings ? "恢复全站默认" : "当前已经是默认样式";
 
   const handleApplyGlobalVisualStyle = async () => {
     if (!canApplyGlobalVisualStyle || !config?.theme) return;
@@ -153,6 +163,7 @@ export function FloatingControls() {
     try {
       const nextSettings: PublicConfig["theme_settings"] & Record<string, unknown> = {
         ...(config.theme_settings ?? {}),
+        gradientBackground: normalizeGradientBackgroundSettings(gradientBackground),
         visualStyle: normalizeVisualStyleSettings(visualStyle),
       };
       await saveThemeSettings(config.theme, nextSettings);
@@ -165,7 +176,7 @@ export function FloatingControls() {
           : current,
       );
       void queryClient.invalidateQueries({ queryKey: ["public"] });
-      setGlobalVisualStyleStatus("已应用到全站默认");
+      setGlobalVisualStyleStatus("卡片与背板玻璃已应用到全站默认");
     } catch (error) {
       setGlobalVisualStyleStatus(error instanceof Error ? error.message : "应用全局失败");
     } finally {
@@ -181,7 +192,6 @@ export function FloatingControls() {
       if (!(target instanceof Node)) return;
       if (controlsRef.current?.contains(target)) return;
 
-      setGradientPanelOpen(false);
       setStylePanelOpen(false);
       setSortPanelOpen(false);
     };
@@ -248,26 +258,7 @@ export function FloatingControls() {
               <button
                 type="button"
                 onClick={() => {
-                  setGradientPanelOpen((open) => !open);
-                  setStylePanelOpen(false);
-                  setSortPanelOpen(false);
-                }}
-                aria-label="渐变背板"
-                aria-expanded={gradientPanelOpen}
-                title="渐变背板"
-                tabIndex={hiddenTabIndex}
-                className={clsx(
-                  "control-button control-toggle grid h-9 w-9 place-items-center",
-                  (gradientPanelOpen || gradientBackground.enabled) && "is-active",
-                )}
-              >
-                <Palette size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   setStylePanelOpen((open) => !open);
-                  setGradientPanelOpen(false);
                   setSortPanelOpen(false);
                 }}
                 aria-label="卡片样式"
@@ -276,7 +267,8 @@ export function FloatingControls() {
                 tabIndex={hiddenTabIndex}
                 className={clsx(
                   "control-button control-toggle grid h-9 w-9 place-items-center",
-                  (stylePanelOpen || hasLocalVisualStyle) && "is-active",
+                  (stylePanelOpen || hasLocalVisualStyle || hasLocalGradientBackground) &&
+                    "is-active",
                 )}
               >
                 <Layers size={16} />
@@ -285,7 +277,6 @@ export function FloatingControls() {
                 type="button"
                 onClick={() => {
                   setSortPanelOpen((open) => !open);
-                  setGradientPanelOpen(false);
                   setStylePanelOpen(false);
                 }}
                 aria-label="首页排序"
@@ -335,7 +326,6 @@ export function FloatingControls() {
               setCollapsed((value) => {
                 const next = !value;
                 if (next) {
-                  setGradientPanelOpen(false);
                   setStylePanelOpen(false);
                   setSortPanelOpen(false);
                 }
@@ -350,215 +340,6 @@ export function FloatingControls() {
             )}
           </button>
         </div>
-        {gradientPanelOpen && !collapsed && (
-          <div className="gradient-quick-panel">
-            <div className="gradient-quick-panel-head">
-              <div>
-                <div className="gradient-quick-title">渐变背板</div>
-                <div className="gradient-quick-subtitle">
-                  {gradientBackground.enabled ? "已启用" : "已关闭"} · {gradientBackgroundSourceLabel}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="instance-toggle-button instance-switch-button gradient-panel-switch"
-                data-active={gradientBackground.enabled ? "true" : "false"}
-                onClick={() =>
-                  updateGradientBackground({ enabled: !gradientBackground.enabled })
-                }
-                aria-pressed={gradientBackground.enabled}
-              >
-                <span className="instance-switch-track" aria-hidden>
-                  <span className="instance-switch-thumb" />
-                </span>
-                <span className="instance-switch-state">
-                  {gradientBackground.enabled ? "开启" : "关闭"}
-                </span>
-              </button>
-            </div>
-
-            <div className="gradient-preset-grid" aria-label="渐变预设">
-              {GRADIENT_BACKGROUND_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className={clsx(
-                    "gradient-preset-button",
-                    gradientBackground.preset === preset.id && "is-active",
-                  )}
-                  onClick={() => updateGradientBackground(presetToGradientSettings(preset))}
-                  title={preset.label}
-                  aria-label={preset.label}
-                >
-                  <span
-                    className="gradient-preset-swatch"
-                    style={{
-                      background: `linear-gradient(${preset.angle}deg, ${preset.colors.primary}, ${preset.colors.secondary} 58%, ${preset.colors.accent})`,
-                    }}
-                    aria-hidden
-                  />
-                  <span>{preset.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="gradient-color-grid">
-              {([
-                ["primary", "主色"],
-                ["secondary", "辅色"],
-                ["accent", "点缀"],
-              ] as const).map(([key, label]) => (
-                <label key={key} className="gradient-color-control">
-                  <span>{label}</span>
-                  <input
-                    type="color"
-                    value={gradientBackground.colors[key]}
-                    onChange={(event) =>
-                      updateGradientBackground((current) => ({
-                        ...current,
-                        preset: "custom",
-                        colors: {
-                          ...current.colors,
-                          [key]: event.target.value,
-                        },
-                      }))
-                    }
-                    aria-label={label}
-                  />
-                </label>
-              ))}
-            </div>
-
-            <label className="gradient-range-control">
-              <span>
-                <span>角度</span>
-                <strong>{gradientBackground.angle}°</strong>
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={360}
-                value={gradientBackground.angle}
-                onChange={(event) =>
-                  updateGradientBackground({
-                    preset: "custom",
-                    angle: Number(event.target.value),
-                  })
-                }
-              />
-            </label>
-
-            <label className="gradient-range-control">
-              <span>
-                <span>柔和</span>
-                <strong>{gradientBackground.softness}px</strong>
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={80}
-                value={gradientBackground.softness}
-                onChange={(event) =>
-                  updateGradientBackground({
-                    preset: "custom",
-                    softness: Number(event.target.value),
-                  })
-                }
-              />
-            </label>
-
-            <label className="gradient-range-control">
-              <span>
-                <span>透明</span>
-                <strong>{gradientBackground.opacity}%</strong>
-              </span>
-              <input
-                type="range"
-                min={10}
-                max={200}
-                value={gradientBackground.opacity}
-                onChange={(event) =>
-                  updateGradientBackground({
-                    preset: "custom",
-                    opacity: Number(event.target.value),
-                  })
-                }
-              />
-            </label>
-
-            <div className="gradient-surface-sync">
-              <div>
-                <div className="gradient-surface-title">同步卡片色彩</div>
-                <div className="gradient-surface-subtitle">
-                  节点卡片和总览会跟随当前渐变
-                </div>
-              </div>
-              <button
-                type="button"
-                className="instance-toggle-button instance-switch-button gradient-panel-switch"
-                data-active={gradientBackground.tintSurfaces ? "true" : "false"}
-                onClick={() =>
-                  updateGradientBackground({
-                    tintSurfaces: !gradientBackground.tintSurfaces,
-                  })
-                }
-                aria-pressed={gradientBackground.tintSurfaces}
-              >
-                <span className="instance-switch-track" aria-hidden>
-                  <span className="instance-switch-thumb" />
-                </span>
-                <span className="instance-switch-state">
-                  {gradientBackground.tintSurfaces ? "开启" : "关闭"}
-                </span>
-              </button>
-            </div>
-
-            <label className="gradient-range-control">
-              <span>
-                <span>色块强度</span>
-                <strong>{gradientBackground.surfaceOpacity}%</strong>
-              </span>
-              <input
-                type="range"
-                min={35}
-                max={200}
-                value={gradientBackground.surfaceOpacity}
-                disabled={!gradientBackground.tintSurfaces}
-                onChange={(event) =>
-                  updateGradientBackground({
-                    surfaceOpacity: Number(event.target.value),
-                  })
-                }
-              />
-            </label>
-
-            <div className="gradient-panel-actions">
-              <button
-                type="button"
-                className="theme-manage-button is-compact"
-                onClick={() =>
-                  updateGradientBackground({
-                    preset: "custom",
-                    grid: !gradientBackground.grid,
-                  })
-                }
-                data-active={gradientBackground.grid ? "true" : "false"}
-              >
-                <Grid2X2 size={13} />
-                <span>{gradientBackground.grid ? "网格开" : "网格关"}</span>
-              </button>
-              <button
-                type="button"
-                className="theme-manage-button is-compact"
-                onClick={clearLocalGradientBackground}
-                disabled={!hasLocalGradientBackground}
-                title={hasLocalGradientBackground ? "恢复全站默认" : "当前已经是默认样式"}
-              >
-                <span>恢复全站默认</span>
-              </button>
-            </div>
-          </div>
-        )}
         {stylePanelOpen && !collapsed && (
           <div
             className={clsx(
@@ -569,7 +350,7 @@ export function FloatingControls() {
             <div className="gradient-quick-panel-head">
               <div>
                 <div className="gradient-quick-title">卡片与样式</div>
-                <div className="gradient-quick-subtitle">{visualStyleSourceLabel}</div>
+                <div className="gradient-quick-subtitle">{stylePanelSourceLabel}</div>
               </div>
               <div className="gradient-quick-actions">
                 {canApplyGlobalVisualStyle && (
@@ -586,9 +367,9 @@ export function FloatingControls() {
               <button
                 type="button"
                 className="theme-manage-button is-compact"
-                onClick={clearLocalVisualStyle}
-                disabled={!hasLocalVisualStyle}
-                title={hasLocalVisualStyle ? "恢复全站默认" : "当前已经是默认样式"}
+                onClick={restoreStylePanelDefaults}
+                disabled={!hasLocalStylePanelSettings}
+                title={restoreStylePanelTitle}
               >
                 <span>恢复全站默认</span>
               </button>
@@ -646,6 +427,208 @@ export function FloatingControls() {
                       <span className="visual-style-preset-copy">{preset.description}</span>
                     </button>
                   ))}
+                </div>
+
+                <div className="visual-style-section-title">背板玻璃</div>
+                <div className="gradient-surface-sync">
+                  <div>
+                    <div className="gradient-surface-title">跟随渐变背板</div>
+                    <div className="gradient-surface-subtitle">
+                      节点卡片和总览色块同步染色
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="instance-toggle-button instance-switch-button gradient-panel-switch"
+                    data-active={gradientBackground.tintSurfaces ? "true" : "false"}
+                    onClick={() =>
+                      updateGradientBackground({
+                        tintSurfaces: !gradientBackground.tintSurfaces,
+                      })
+                    }
+                    aria-pressed={gradientBackground.tintSurfaces}
+                  >
+                    <span className="instance-switch-track" aria-hidden>
+                      <span className="instance-switch-thumb" />
+                    </span>
+                    <span className="instance-switch-state">
+                      {gradientBackground.tintSurfaces ? "开启" : "关闭"}
+                    </span>
+                  </button>
+                </div>
+
+                <label className="gradient-range-control">
+                  <span>
+                    <span>玻璃强度</span>
+                    <strong>{gradientBackground.surfaceOpacity}%</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={35}
+                    max={200}
+                    value={gradientBackground.surfaceOpacity}
+                    disabled={!gradientBackground.tintSurfaces}
+                    onChange={(event) =>
+                      updateGradientBackground({
+                        surfaceOpacity: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            )}
+
+            {visualStyleTab === "gradient" && (
+              <div className="visual-style-section">
+                <div className="gradient-surface-sync">
+                  <div>
+                    <div className="gradient-surface-title">渐变背板</div>
+                    <div className="gradient-surface-subtitle">
+                      作为默认背板，也可给卡片玻璃提供色彩
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="instance-toggle-button instance-switch-button gradient-panel-switch"
+                    data-active={gradientBackground.enabled ? "true" : "false"}
+                    onClick={() =>
+                      updateGradientBackground({ enabled: !gradientBackground.enabled })
+                    }
+                    aria-pressed={gradientBackground.enabled}
+                  >
+                    <span className="instance-switch-track" aria-hidden>
+                      <span className="instance-switch-thumb" />
+                    </span>
+                    <span className="instance-switch-state">
+                      {gradientBackground.enabled ? "开启" : "关闭"}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="gradient-preset-grid" aria-label="渐变预设">
+                  {GRADIENT_BACKGROUND_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={clsx(
+                        "gradient-preset-button",
+                        gradientBackground.preset === preset.id && "is-active",
+                      )}
+                      onClick={() => updateGradientBackground(presetToGradientSettings(preset))}
+                      title={preset.label}
+                      aria-label={preset.label}
+                    >
+                      <span
+                        className="gradient-preset-swatch"
+                        style={{
+                          background: `linear-gradient(${preset.angle}deg, ${preset.colors.primary}, ${preset.colors.secondary} 58%, ${preset.colors.accent})`,
+                        }}
+                        aria-hidden
+                      />
+                      <span>{preset.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="gradient-color-grid">
+                  {([
+                    ["primary", "主色"],
+                    ["secondary", "辅色"],
+                    ["accent", "点缀"],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="gradient-color-control">
+                      <span>{label}</span>
+                      <input
+                        type="color"
+                        value={gradientBackground.colors[key]}
+                        onChange={(event) =>
+                          updateGradientBackground((current) => ({
+                            ...current,
+                            preset: "custom",
+                            colors: {
+                              ...current.colors,
+                              [key]: event.target.value,
+                            },
+                          }))
+                        }
+                        aria-label={label}
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <label className="gradient-range-control">
+                  <span>
+                    <span>角度</span>
+                    <strong>{gradientBackground.angle}°</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    value={gradientBackground.angle}
+                    onChange={(event) =>
+                      updateGradientBackground({
+                        preset: "custom",
+                        angle: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="gradient-range-control">
+                  <span>
+                    <span>柔和</span>
+                    <strong>{gradientBackground.softness}px</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={80}
+                    value={gradientBackground.softness}
+                    onChange={(event) =>
+                      updateGradientBackground({
+                        preset: "custom",
+                        softness: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+
+                <label className="gradient-range-control">
+                  <span>
+                    <span>透明</span>
+                    <strong>{gradientBackground.opacity}%</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={10}
+                    max={200}
+                    value={gradientBackground.opacity}
+                    onChange={(event) =>
+                      updateGradientBackground({
+                        preset: "custom",
+                        opacity: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+
+                <div className="gradient-panel-actions">
+                  <button
+                    type="button"
+                    className="theme-manage-button is-compact"
+                    onClick={() =>
+                      updateGradientBackground({
+                        preset: "custom",
+                        grid: !gradientBackground.grid,
+                      })
+                    }
+                    data-active={gradientBackground.grid ? "true" : "false"}
+                  >
+                    <Grid2X2 size={13} />
+                    <span>{gradientBackground.grid ? "网格开" : "网格关"}</span>
+                  </button>
                 </div>
               </div>
             )}

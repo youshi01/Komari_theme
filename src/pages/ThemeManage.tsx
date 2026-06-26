@@ -24,16 +24,12 @@ import {
   Layers,
   LayoutTemplate,
   ListOrdered,
-  Link2,
-  Moon,
   Palette,
   RefreshCw,
   Save,
   Search,
   Shuffle,
   Sparkles,
-  Sun,
-  SunMoon,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -51,7 +47,6 @@ import {
 } from "@/services/api";
 import type {
   AdminClient,
-  PingTask,
   PublicConfig,
   ThemeBackgroundSettings,
   ThemeBackgroundUpload,
@@ -118,263 +113,30 @@ import {
   type HomepageNodeSortSettings,
 } from "@/utils/nodeSort";
 
-type Appearance = "system" | "light" | "dark";
-
-const APPEARANCE_OPTIONS = [
-  { value: "light", label: "浅色", icon: Sun },
-  { value: "system", label: "跟随系统", icon: SunMoon },
-  { value: "dark", label: "深色", icon: Moon },
-] as const;
-
-const BACKGROUND_SOURCE_OPTIONS = [
-  { value: "url", label: "图片链接", icon: Link2 },
-  { value: "upload", label: "上传图片", icon: Upload },
-] as const;
-
-const BACKGROUND_FIT_OPTIONS = [
-  { value: "cover", label: "铺满" },
-  { value: "contain", label: "完整" },
-  { value: "fill", label: "拉伸" },
-] as const;
-
-const BACKGROUND_POSITION_OPTIONS = [
-  { value: "center", label: "居中" },
-  { value: "top", label: "顶部" },
-  { value: "bottom", label: "底部" },
-  { value: "left", label: "左侧" },
-  { value: "right", label: "右侧" },
-] as const;
-
-const BACKGROUND_OPTIMIZE_MIN_BYTES = 1_200_000;
-const BACKGROUND_OPTIMIZE_MAX_EDGE = 1920;
-const BACKGROUND_OPTIMIZE_QUALITY = 0.86;
-
-function normalizeAppearance(value: unknown): Appearance {
-  return value === "light" || value === "dark" || value === "system" ? value : "system";
-}
-
-function createUploadId(file: File) {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${file.name}-${file.size}-${file.lastModified}-${Date.now()}`;
-}
-
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error("无法读取图片文件"));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("无法读取图片文件"));
-    reader.readAsDataURL(file);
-  });
-}
-
-function estimateDataUrlBytes(dataUrl: string) {
-  const commaIndex = dataUrl.indexOf(",");
-  if (commaIndex < 0) return dataUrl.length;
-  const base64 = dataUrl.slice(commaIndex + 1);
-  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
-  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
-}
-
-function readBlobAsDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error("无法读取压缩后的图片"));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("无法读取压缩后的图片"));
-    reader.readAsDataURL(blob);
-  });
-}
-
-function loadDataUrlImage(dataUrl: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.decoding = "async";
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("无法解码背景图片"));
-    image.src = dataUrl;
-  });
-}
-
-async function optimizeBackgroundUpload(upload: ThemeBackgroundUpload) {
-  const estimatedBytes = upload.size || estimateDataUrlBytes(upload.dataUrl);
-  const canOptimize =
-    /^image\/jpe?g$/i.test(upload.mime) &&
-    upload.dataUrl.startsWith("data:image/") &&
-    estimatedBytes >= BACKGROUND_OPTIMIZE_MIN_BYTES;
-  if (!canOptimize) return upload;
-
-  try {
-    const image = await loadDataUrlImage(upload.dataUrl);
-    const width = image.naturalWidth || image.width;
-    const height = image.naturalHeight || image.height;
-    if (width <= 0 || height <= 0) return upload;
-
-    const scale = Math.min(1, BACKGROUND_OPTIMIZE_MAX_EDGE / Math.max(width, height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(width * scale));
-    canvas.height = Math.max(1, Math.round(height * scale));
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) return upload;
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/webp", BACKGROUND_OPTIMIZE_QUALITY),
-    );
-    if (!blob || blob.size >= estimatedBytes * 0.92) return upload;
-
-    return {
-      ...upload,
-      mime: "image/webp",
-      size: blob.size,
-      dataUrl: await readBlobAsDataUrl(blob),
-    };
-  } catch {
-    return upload;
-  }
-}
-
-async function optimizeBackgroundUploads(settings: ThemeBackgroundSettings) {
-  if (settings.source !== "upload" || settings.uploads.length === 0) {
-    return normalizeBackgroundSettings(settings);
-  }
-
-  const uploads: ThemeBackgroundUpload[] = [];
-  let changed = false;
-  for (const upload of settings.uploads) {
-    const optimized = await optimizeBackgroundUpload(upload);
-    if (optimized !== upload) changed = true;
-    uploads.push(optimized);
-  }
-
-  return changed
-    ? normalizeBackgroundSettings({ ...settings, uploads })
-    : normalizeBackgroundSettings(settings);
-}
-
-function serializeBindings(bindings: HomepagePingTaskBindings) {
-  return JSON.stringify(
-    Object.entries(bindings)
-      .map(
-        ([taskId, clients]): [number, string[]] => [
-          Number(taskId),
-          [...clients].sort((left, right) => left.localeCompare(right)),
-        ],
-      )
-      .filter(([taskId]) => Number.isInteger(taskId) && taskId > 0)
-      .sort(([left], [right]) => Number(left) - Number(right)),
-  );
-}
-
-function sortTasks(tasks: PingTask[]) {
-  return [...tasks].sort((left, right) => {
-    if (left.weight !== right.weight) return left.weight - right.weight;
-    if (left.id !== right.id) return left.id - right.id;
-    return left.name.localeCompare(right.name);
-  });
-}
-
-function sortClients(clients: AdminClient[]) {
-  return [...clients].sort((left, right) => {
-    if (left.weight !== right.weight) return left.weight - right.weight;
-    return left.name.localeCompare(right.name);
-  });
-}
-
-function summarizeNodes(
-  uuids: string[],
-  clientsById: Map<string, AdminClient>,
-) {
-  if (uuids.length === 0) return "未绑定节点";
-  const names = uuids.map((uuid) => clientsById.get(uuid)?.name || uuid);
-  const summary = names.join("、");
-  return summary.length > 92 ? `${summary.slice(0, 92)}...` : summary;
-}
-
-function pruneBindings(bindings: HomepagePingTaskBindings) {
-  const normalized = normalizeHomepagePingTaskBindings(bindings);
-  const pruned: HomepagePingTaskBindings = {};
-
-  for (const [taskId, clients] of Object.entries(normalized)) {
-    if (clients.length > 0) {
-      pruned[taskId] = clients;
-    }
-  }
-
-  return pruned;
-}
-
-function applyClientAssignment(
-  bindings: HomepagePingTaskBindings,
-  taskId: number,
-  clientUuid: string,
-  checked: boolean,
-) {
-  const taskKey = String(taskId);
-  const next = pruneBindings(bindings);
-
-  for (const [currentTaskId, clients] of Object.entries(next)) {
-    const filtered = clients.filter((uuid) => uuid !== clientUuid);
-    if (filtered.length > 0) {
-      next[currentTaskId] = filtered;
-    } else {
-      delete next[currentTaskId];
-    }
-  }
-
-  if (checked) {
-    const selected = next[taskKey] ?? [];
-    next[taskKey] = Array.from(new Set([...selected, clientUuid])).sort((left, right) =>
-      left.localeCompare(right),
-    );
-  }
-
-  return next;
-}
-
-function applyAllClientsToTask(
-  bindings: HomepagePingTaskBindings,
-  taskId: number,
-  clientUuids: string[],
-) {
-  const taskKey = String(taskId);
-  const allClients = Array.from(new Set(clientUuids.filter(Boolean))).sort((left, right) =>
-    left.localeCompare(right),
-  );
-  if (allClients.length === 0) return pruneBindings(bindings);
-
-  const allClientSet = new Set(allClients);
-  const next: HomepagePingTaskBindings = {};
-
-  for (const [currentTaskId, clients] of Object.entries(pruneBindings(bindings))) {
-    if (currentTaskId === taskKey) continue;
-    const filtered = clients.filter((uuid) => !allClientSet.has(uuid));
-    if (filtered.length > 0) {
-      next[currentTaskId] = filtered;
-    }
-  }
-
-  next[taskKey] = allClients;
-  return pruneBindings(next);
-}
-
-function waitForNextFrame() {
-  return new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
-}
+import {
+  APPEARANCE_OPTIONS,
+  BACKGROUND_FIT_OPTIONS,
+  BACKGROUND_POSITION_OPTIONS,
+  BACKGROUND_SOURCE_OPTIONS,
+  normalizeAppearance,
+  type Appearance,
+} from "./themeManage/themeManageOptions";
+import {
+  createUploadId,
+  optimizeBackgroundUpload,
+  optimizeBackgroundUploads,
+  readFileAsDataUrl,
+} from "./themeManage/backgroundUploads";
+import {
+  applyAllClientsToTask,
+  applyClientAssignment,
+  pruneBindings,
+  serializeBindings,
+  sortClients,
+  sortTasks,
+  summarizeNodes,
+} from "./themeManage/pingBindings";
+import { waitForNextFrame } from "./themeManage/scheduler";
 
 export function ThemeManage() {
   const { data: config, isLoading: configLoading } = usePublicConfig();
@@ -1042,7 +804,7 @@ export function ThemeManage() {
 
       <InstancePanel
         title="全站默认卡片与样式"
-        description="管理员保存后作为游客和未设置本机样式用户的默认卡片外壳、信息展板、数据条动态样式和配色；首页快捷面板仍可本机覆盖。"
+        description="管理员保存后作为游客和未设置本机样式用户的默认卡片外壳、背板玻璃、信息展板、数据条动态样式和配色；首页快捷面板仍可本机覆盖。"
         aside={
           <div className="flex items-center justify-end gap-2">
             <Layers size={16} />
@@ -1101,6 +863,56 @@ export function ThemeManage() {
                     <span className="visual-style-preset-copy">{preset.description}</span>
                   </button>
                 ))}
+              </div>
+
+              <div className="mt-4 grid gap-3 border-t border-[var(--hairline)] pt-4">
+                <div className="text-[12px] font-semibold text-[var(--text-secondary)]">
+                  背板玻璃
+                </div>
+                <div className="gradient-surface-sync">
+                  <div>
+                    <div className="gradient-surface-title">跟随渐变背板</div>
+                    <div className="gradient-surface-subtitle">
+                      节点卡片、总览和部分色块同步染色
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="instance-toggle-button instance-switch-button gradient-panel-switch"
+                    data-active={draftGradientBackground.tintSurfaces ? "true" : "false"}
+                    onClick={() =>
+                      updateDraftGradientBackground({
+                        tintSurfaces: !draftGradientBackground.tintSurfaces,
+                      })
+                    }
+                    aria-pressed={draftGradientBackground.tintSurfaces}
+                  >
+                    <span className="instance-switch-track" aria-hidden>
+                      <span className="instance-switch-thumb" />
+                    </span>
+                    <span className="instance-switch-state">
+                      {draftGradientBackground.tintSurfaces ? "开启" : "关闭"}
+                    </span>
+                  </button>
+                </div>
+                <label className="gradient-range-control !mt-0">
+                  <span>
+                    <span>玻璃强度</span>
+                    <strong>{draftGradientBackground.surfaceOpacity}%</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={35}
+                    max={200}
+                    value={draftGradientBackground.surfaceOpacity}
+                    disabled={!draftGradientBackground.tintSurfaces}
+                    onChange={(event) =>
+                      updateDraftGradientBackground({
+                        surfaceOpacity: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
               </div>
             </div>
 
@@ -1700,51 +1512,6 @@ export function ThemeManage() {
                 />
               </label>
 
-              <label className="gradient-range-control">
-                <span>
-                  <span>色块强度</span>
-                  <strong>{draftGradientBackground.surfaceOpacity}%</strong>
-                </span>
-                <input
-                  type="range"
-                  min={35}
-                  max={200}
-                  value={draftGradientBackground.surfaceOpacity}
-                  disabled={!draftGradientBackground.tintSurfaces}
-                  onChange={(event) =>
-                    updateDraftGradientBackground({
-                      surfaceOpacity: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-            </div>
-
-            <div className="gradient-surface-sync">
-              <div>
-                <div className="gradient-surface-title">同步卡片色彩</div>
-                <div className="gradient-surface-subtitle">
-                  节点卡片、总览和部分色块跟随渐变
-                </div>
-              </div>
-              <button
-                type="button"
-                className="instance-toggle-button instance-switch-button gradient-panel-switch"
-                data-active={draftGradientBackground.tintSurfaces ? "true" : "false"}
-                onClick={() =>
-                  updateDraftGradientBackground({
-                    tintSurfaces: !draftGradientBackground.tintSurfaces,
-                  })
-                }
-                aria-pressed={draftGradientBackground.tintSurfaces}
-              >
-                <span className="instance-switch-track" aria-hidden>
-                  <span className="instance-switch-thumb" />
-                </span>
-                <span className="instance-switch-state">
-                  {draftGradientBackground.tintSurfaces ? "开启" : "关闭"}
-                </span>
-              </button>
             </div>
 
             <div className="gradient-panel-actions flex-wrap">
