@@ -72,7 +72,12 @@ export class ApiRequestError extends Error {
   }
 }
 
-function estimateJsonPayloadSize(value: unknown, seen = new Set<object>()): number {
+function estimateJsonPayloadSize(
+  value: unknown,
+  seen = new Set<object>(),
+  limit = ASYNC_JSON_STRINGIFY_THRESHOLD,
+): number {
+  if (limit <= 0) return ASYNC_JSON_STRINGIFY_THRESHOLD;
   if (value == null) return 4;
   if (typeof value === "string") return value.length + 2;
   if (typeof value === "number" || typeof value === "boolean") return 8;
@@ -81,13 +86,20 @@ function estimateJsonPayloadSize(value: unknown, seen = new Set<object>()): numb
   seen.add(value);
 
   if (Array.isArray(value)) {
-    return value.reduce((total, item) => total + estimateJsonPayloadSize(item, seen) + 1, 2);
+    let total = 2;
+    for (const item of value) {
+      total += estimateJsonPayloadSize(item, seen, limit - total) + 1;
+      if (total >= limit) return total;
+    }
+    return total;
   }
 
-  return Object.entries(value as Record<string, unknown>).reduce(
-    (total, [key, item]) => total + key.length + estimateJsonPayloadSize(item, seen) + 4,
-    2,
-  );
+  let total = 2;
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    total += key.length + estimateJsonPayloadSize(item, seen, limit - total) + 4;
+    if (total >= limit) return total;
+  }
+  return total;
 }
 
 function stringifyJsonInWorker(value: unknown): Promise<string> {

@@ -255,6 +255,25 @@
   font-weight: 720;
 }
 
+.gradient-quick-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.gradient-quick-status {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--progress-cpu) 20%, var(--hairline));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--progress-cpu) 8%, var(--surface-sunken));
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
 .gradient-quick-subtitle {
   margin-top: 2px;
   color: var(--text-tertiary);
@@ -3238,7 +3257,11 @@
 .radar-gauge-art-scan-trail {
   stroke-width: calc(var(--radar-stroke-width, 9px) + 2px);
   opacity: 0.58;
+  stroke-dashoffset: 0;
   animation: ys-radar-dash-flow calc(var(--radar-pulse-ms, 1800ms) * 1.28) linear infinite;
+  animation-delay: var(--radar-scan-delay, 0ms);
+  animation-fill-mode: both;
+  will-change: stroke-dashoffset;
 }
 
 .radar-gauge-scan-head {
@@ -3250,6 +3273,15 @@
 
 .radar-gauge-scan-head circle {
   animation: ys-radar-node-pulse var(--radar-pulse-ms, 1800ms) ease-in-out infinite;
+  animation-delay: var(--radar-scan-delay, 0ms);
+}
+
+.radar-gauge-scan-head circle:nth-child(2) {
+  animation-delay: calc(var(--radar-scan-delay, 0ms) - 160ms);
+}
+
+.radar-gauge-scan-head circle:nth-child(3) {
+  animation-delay: calc(var(--radar-scan-delay, 0ms) - 320ms);
 }
 
 @keyframes ys-radar-glow-breathe {
@@ -3264,6 +3296,10 @@
 }
 
 @keyframes ys-radar-dash-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+
   to {
     stroke-dashoffset: -120;
   }

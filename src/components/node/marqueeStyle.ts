@@ -35,6 +35,13 @@ interface DrawMarqueeStripOptions {
 }
 
 const DEFAULT_FRAME_MS = 1000 / 24;
+const COLOR_CACHE_LIMIT = 360;
+const parsedColorCache = new Map<string, RgbaColor | null>();
+const mixedColorCache = new Map<string, string>();
+let cachedStyleFrame = Number.NaN;
+let cachedRootStyles: CSSStyleDeclaration | null = null;
+let cachedResolvedFrame = Number.NaN;
+const resolvedFrameColors = new Map<string, string>();
 
 function clamp(value: number, min = 0, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -45,6 +52,9 @@ function clampInt(value: number, min: number, max: number) {
 }
 
 function parseColor(color: string): RgbaColor | null {
+  const cached = parsedColorCache.get(color);
+  if (cached !== undefined) return cached;
+
   const normalized = color.trim();
   const hex = normalized.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
   if (hex) {
@@ -56,24 +66,34 @@ function parseColor(color: string): RgbaColor | null {
             .map((part) => `${part}${part}`)
             .join("")
         : raw;
-    return {
+    const parsed = {
       r: Number.parseInt(expanded.slice(0, 2), 16),
       g: Number.parseInt(expanded.slice(2, 4), 16),
       b: Number.parseInt(expanded.slice(4, 6), 16),
       a: 1,
     };
+    parsedColorCache.set(color, parsed);
+    if (parsedColorCache.size > COLOR_CACHE_LIMIT) parsedColorCache.clear();
+    return parsed;
   }
 
   const rgb = normalized.match(
     /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i,
   );
-  if (!rgb) return null;
-  return {
+  if (!rgb) {
+    parsedColorCache.set(color, null);
+    if (parsedColorCache.size > COLOR_CACHE_LIMIT) parsedColorCache.clear();
+    return null;
+  }
+  const parsed = {
     r: clampInt(Number(rgb[1]), 0, 255),
     g: clampInt(Number(rgb[2]), 0, 255),
     b: clampInt(Number(rgb[3]), 0, 255),
     a: rgb[4] == null ? 1 : clamp(Number(rgb[4])),
   };
+  parsedColorCache.set(color, parsed);
+  if (parsedColorCache.size > COLOR_CACHE_LIMIT) parsedColorCache.clear();
+  return parsed;
 }
 
 function toRgbaString(color: RgbaColor, alpha = color.a) {
@@ -81,16 +101,28 @@ function toRgbaString(color: RgbaColor, alpha = color.a) {
 }
 
 function mixColors(from: string, to: string, amount: number) {
+  const cacheKey = `${from}|${to}|${amount.toFixed(3)}`;
+  const cached = mixedColorCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
   const a = parseColor(from);
   const b = parseColor(to);
-  if (!a || !b) return amount < 0.5 ? from : to;
+  if (!a || !b) {
+    const fallback = amount < 0.5 ? from : to;
+    mixedColorCache.set(cacheKey, fallback);
+    if (mixedColorCache.size > COLOR_CACHE_LIMIT) mixedColorCache.clear();
+    return fallback;
+  }
   const share = clamp(amount);
-  return toRgbaString({
+  const mixed = toRgbaString({
     r: clampInt(a.r + (b.r - a.r) * share, 0, 255),
     g: clampInt(a.g + (b.g - a.g) * share, 0, 255),
     b: clampInt(a.b + (b.b - a.b) * share, 0, 255),
     a: a.a + (b.a - a.a) * share,
   });
+  mixedColorCache.set(cacheKey, mixed);
+  if (mixedColorCache.size > COLOR_CACHE_LIMIT) mixedColorCache.clear();
+  return mixed;
 }
 
 function withAlpha(color: string, alpha: number) {
@@ -104,6 +136,36 @@ function resetCanvasEffects(ctx: CanvasRenderingContext2D) {
   ctx.shadowColor = "transparent";
   ctx.lineCap = "butt";
   ctx.lineJoin = "miter";
+}
+
+function frameKey(now?: number) {
+  return Number.isFinite(now) ? Math.floor((now as number) / 16) : -1;
+}
+
+function getFrameRootStyles(now?: number) {
+  const key = frameKey(now);
+  if (key >= 0 && cachedRootStyles && cachedStyleFrame === key) {
+    return cachedRootStyles;
+  }
+  cachedRootStyles = getComputedStyle(document.documentElement);
+  cachedStyleFrame = key;
+  return cachedRootStyles;
+}
+
+function resolveFrameColor(color: string, styles: CSSStyleDeclaration, now?: number) {
+  if (!color.includes("var(")) return color;
+
+  const key = frameKey(now);
+  if (key < 0) return resolveCssColor(color, styles);
+  if (cachedResolvedFrame !== key) {
+    resolvedFrameColors.clear();
+    cachedResolvedFrame = key;
+  }
+  const cached = resolvedFrameColors.get(color);
+  if (cached) return cached;
+  const resolved = resolveCssColor(color, styles);
+  resolvedFrameColors.set(color, resolved);
+  return resolved;
 }
 
 function pointIsActive(point: MarqueePoint) {
@@ -429,11 +491,11 @@ export function drawMarqueeStrip(
   options: DrawMarqueeStripOptions,
 ) {
   if (width <= 0 || height <= 0 || options.points.length === 0) return;
-  const styles = getComputedStyle(document.documentElement);
+  const styles = getFrameRootStyles(options.now);
   const resolved: MarqueeStripColors = {
-    base: resolveCssColor(options.colors.base, styles),
-    accent: resolveCssColor(options.colors.accent, styles),
-    inactive: resolveCssColor(options.colors.inactive, styles),
+    base: resolveFrameColor(options.colors.base, styles, options.now),
+    accent: resolveFrameColor(options.colors.accent, styles, options.now),
+    inactive: resolveFrameColor(options.colors.inactive, styles, options.now),
   };
 
   resetCanvasEffects(ctx);

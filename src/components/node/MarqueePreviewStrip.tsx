@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import type {
   MarqueeStyleSettings,
   VisualMetricColors,
@@ -19,6 +20,7 @@ interface MarqueePreviewStripProps {
   colors: VisualMetricColors;
   className?: string;
   height?: number;
+  animated?: boolean;
 }
 
 export function MarqueePreviewStrip({
@@ -26,23 +28,47 @@ export function MarqueePreviewStrip({
   colors,
   className = "visual-style-preview-marquee",
   height = 16,
+  animated = true,
 }: MarqueePreviewStripProps) {
-  const points = PREVIEW_LEVELS.map((level, index) => ({
-    level,
-    active: index % 7 !== 1,
-    opacity: 0.62 + level * 0.34,
-    color:
-      index % 6 === 0
-        ? colors.peak
-        : index % 4 === 0
-          ? colors.down
-          : index % 3 === 0
-            ? colors.latency
-            : colors.up,
-  }));
-  const redrawKey = `${style.preset}:${style.shape}:${style.density}:${style.radius}:${style.glow}:${style.motion}:${Object.values(
-    colors,
-  ).join("|")}`;
+  const points = useMemo(
+    () =>
+      PREVIEW_LEVELS.map((level, index) => ({
+        level,
+        active: index % 7 !== 1,
+        opacity: 0.62 + level * 0.34,
+        color:
+          index % 6 === 0
+            ? colors.peak
+            : index % 4 === 0
+              ? colors.down
+              : index % 3 === 0
+                ? colors.latency
+                : colors.up,
+      })),
+    [colors.down, colors.latency, colors.peak, colors.up],
+  );
+  const redrawKey = useMemo(
+    () =>
+      `${style.preset}:${style.shape}:${style.density}:${style.radius}:${style.glow}:${style.motion}:${Object.values(
+        colors,
+      ).join("|")}`,
+    [colors, style.density, style.glow, style.motion, style.preset, style.radius, style.shape],
+  );
+  const draw = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, stripHeight: number, now: number) =>
+      drawMarqueeStrip(ctx, width, stripHeight, {
+        points,
+        style,
+        variant: "trend",
+        now,
+        colors: {
+          base: colors.up,
+          accent: colors.peak,
+          inactive: colors.idle,
+        },
+      }),
+    [colors.idle, colors.peak, colors.up, points, style],
+  );
 
   return (
     <CanvasStrip
@@ -50,21 +76,9 @@ export function MarqueePreviewStrip({
       height={height}
       ariaHidden
       redrawKey={redrawKey}
-      animated={shouldAnimateMarqueeStyle(style)}
+      animated={animated && shouldAnimateMarqueeStyle(style)}
       frameIntervalMs={getMarqueeFrameInterval(style)}
-      draw={(ctx, width, stripHeight, now) =>
-        drawMarqueeStrip(ctx, width, stripHeight, {
-          points,
-          style,
-          variant: "trend",
-          now,
-          colors: {
-            base: colors.up,
-            accent: colors.peak,
-            inactive: colors.idle,
-          },
-        })
-      }
+      draw={draw}
     />
   );
 }

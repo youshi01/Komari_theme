@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -369,6 +370,12 @@ function applyAllClientsToTask(
   return pruneBindings(next);
 }
 
+function waitForNextFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
 export function ThemeManage() {
   const { data: config, isLoading: configLoading } = usePublicConfig();
   const backgroundFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -394,30 +401,56 @@ export function ThemeManage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accessRevoked, setAccessRevoked] = useState(false);
+  const [adminDataRequested, setAdminDataRequested] = useState(false);
   const deferredTaskSearch = useDeferredValue(taskSearch);
   const deferredNodeSearch = useDeferredValue(nodeSearch);
   const deferredOrderSearch = useDeferredValue(orderSearch);
+  const requestAdminData = useCallback(() => setAdminDataRequested(true), []);
 
   const {
     data: pingTasks,
-    isLoading: tasksLoading,
+    isLoading: tasksQueryLoading,
     error: tasksError,
   } = useQuery({
     queryKey: ["admin", "ping-tasks"],
     queryFn: getAdminPingTasks,
-    staleTime: 30_000,
+    enabled: adminDataRequested,
+    staleTime: 120_000,
     retry: false,
   });
   const {
     data: adminClients,
-    isLoading: clientsLoading,
+    isLoading: clientsQueryLoading,
     error: clientsError,
   } = useQuery({
     queryKey: ["admin", "clients"],
     queryFn: getAdminClients,
-    staleTime: 30_000,
+    enabled: adminDataRequested,
+    staleTime: 120_000,
     retry: false,
   });
+  const tasksLoading = !adminDataRequested || tasksQueryLoading;
+  const clientsLoading = !adminDataRequested || clientsQueryLoading;
+
+  useEffect(() => {
+    if (!config || adminDataRequested) return;
+    const idleWindow = window as Window &
+      typeof globalThis & {
+        requestIdleCallback?: (
+          callback: () => void,
+          options?: { timeout?: number },
+        ) => number;
+        cancelIdleCallback?: (handle: number) => void;
+      };
+
+    if (typeof idleWindow.requestIdleCallback === "function") {
+      const idleId = idleWindow.requestIdleCallback(requestAdminData, { timeout: 2200 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+
+    const timer = window.setTimeout(requestAdminData, 1200);
+    return () => window.clearTimeout(timer);
+  }, [adminDataRequested, config, requestAdminData]);
 
   const sourceAppearance = useMemo(
     () => normalizeAppearance(config?.theme_settings?.defaultAppearance),
@@ -468,8 +501,14 @@ export function ThemeManage() {
     sourceNodeSort,
   ]);
 
-  const sortedTasks = useMemo(() => sortTasks(pingTasks ?? []), [pingTasks]);
-  const sortedClients = useMemo(() => sortClients(adminClients ?? []), [adminClients]);
+  const sortedTasks = useMemo(
+    () => (adminDataRequested ? sortTasks(pingTasks ?? []) : []),
+    [adminDataRequested, pingTasks],
+  );
+  const sortedClients = useMemo(
+    () => (adminDataRequested ? sortClients(adminClients ?? []) : []),
+    [adminClients, adminDataRequested],
+  );
   const allClientUuids = useMemo(
     () => sortedClients.map((client) => client.uuid),
     [sortedClients],
@@ -594,9 +633,10 @@ export function ThemeManage() {
     () => serializeVisualStyleSettings(sourceVisualStyle),
     [sourceVisualStyle],
   );
+  const backgroundDirty = draftBackgroundSerialized !== sourceBackgroundSerialized;
   const isDirty =
     draftAppearance !== sourceAppearance ||
-    draftBackgroundSerialized !== sourceBackgroundSerialized ||
+    backgroundDirty ||
     draftGradientBackgroundSerialized !== sourceGradientBackgroundSerialized ||
     draftVisualStyleSerialized !== sourceVisualStyleSerialized ||
     draftNodeOrderSerialized !== sourceNodeOrderSerialized ||
@@ -805,11 +845,17 @@ export function ThemeManage() {
     setError(null);
     setMessage(null);
     try {
-      const nextBackground = await optimizeBackgroundUploads(draftBackground);
+      await waitForNextFrame();
+      const nextBackground = backgroundDirty
+        ? await optimizeBackgroundUploads(draftBackground)
+        : sourceBackground;
       const nextGradientBackground = normalizeGradientBackgroundSettings(draftGradientBackground);
       const nextVisualStyle = normalizeVisualStyleSettings(draftVisualStyle);
       const nextBindings = pruneBindings(draftBindings);
-      if (getBackgroundSettingsFingerprint(nextBackground) !== draftBackgroundSerialized) {
+      if (
+        backgroundDirty &&
+        getBackgroundSettingsFingerprint(nextBackground) !== draftBackgroundSerialized
+      ) {
         setDraftBackground(nextBackground);
       }
       const baseSettings: ThemeSettings & Record<string, unknown> = {
@@ -885,23 +931,33 @@ export function ThemeManage() {
   }
 
   const adminAccessDenied =
-    (tasksError instanceof ApiRequestError &&
+    adminDataRequested &&
+    ((tasksError instanceof ApiRequestError &&
       (tasksError.status === 401 || tasksError.status === 403)) ||
-    (clientsError instanceof ApiRequestError &&
-      (clientsError.status === 401 || clientsError.status === 403));
+      (clientsError instanceof ApiRequestError &&
+        (clientsError.status === 401 || clientsError.status === 403)));
 
   if (adminAccessDenied) {
     return <Navigate to="/" replace />;
   }
 
   const adminError =
-    (tasksError instanceof Error ? tasksError.message : null) ||
-    (clientsError instanceof Error ? clientsError.message : null);
-  const noTasksYet = !tasksLoading && !clientsLoading && sortedTasks.length === 0;
-  const noFilteredTaskMatch = !tasksLoading && !clientsLoading && !noTasksYet && filteredTasks.length === 0;
-  const noClientsYet = !clientsLoading && sortedClients.length === 0;
+    adminDataRequested
+      ? (tasksError instanceof Error ? tasksError.message : null) ||
+        (clientsError instanceof Error ? clientsError.message : null)
+      : null;
+  const noTasksYet =
+    adminDataRequested && !tasksLoading && !clientsLoading && sortedTasks.length === 0;
+  const noFilteredTaskMatch =
+    adminDataRequested &&
+    !tasksLoading &&
+    !clientsLoading &&
+    !noTasksYet &&
+    filteredTasks.length === 0;
+  const noClientsYet =
+    adminDataRequested && !clientsLoading && sortedClients.length === 0;
   const noFilteredOrderMatch =
-    !clientsLoading && !noClientsYet && visibleOrderClients.length === 0;
+    adminDataRequested && !clientsLoading && !noClientsYet && visibleOrderClients.length === 0;
 
   return (
     <div className="flex flex-col gap-5 py-2">
@@ -1268,6 +1324,7 @@ export function ThemeManage() {
                       style={draftVisualStyle.marqueeStyle}
                       colors={draftVisualStyle.colors}
                       height={18}
+                      animated={false}
                     />
                     {(
                       [
@@ -1450,6 +1507,7 @@ export function ThemeManage() {
                 style={draftVisualStyle.marqueeStyle}
                 colors={draftVisualStyle.colors}
                 height={18}
+                animated={false}
               />
               <div className="visual-style-preview-foot">
                 <span>128 MB/s</span>
@@ -1817,8 +1875,11 @@ export function ThemeManage() {
               </button>
               <button
                 type="button"
-                onClick={() => setOrderListExpanded((expanded) => !expanded)}
-                disabled={clientsLoading}
+                onClick={() => {
+                  requestAdminData();
+                  setOrderListExpanded((expanded) => !expanded);
+                }}
+                disabled={adminDataRequested && clientsQueryLoading}
                 className="theme-manage-button is-compact"
                 aria-expanded={orderListExpanded}
               >
@@ -1834,7 +1895,10 @@ export function ThemeManage() {
                 <Search size={14} className="text-[var(--text-tertiary)]" />
                 <input
                   value={orderSearch}
-                  onChange={(event) => setOrderSearch(event.target.value)}
+                  onChange={(event) => {
+                    requestAdminData();
+                    setOrderSearch(event.target.value);
+                  }}
                   placeholder="搜索服务器名称 / UUID / 分组 / 地区"
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-[var(--text-tertiary)]"
                 />
@@ -2295,7 +2359,10 @@ export function ThemeManage() {
               <Search size={14} className="text-[var(--text-tertiary)]" />
               <input
                 value={taskSearch}
-                onChange={(event) => setTaskSearch(event.target.value)}
+                onChange={(event) => {
+                  requestAdminData();
+                  setTaskSearch(event.target.value);
+                }}
                 placeholder="搜索 Ping 任务名称 / ID / 类型 / 目标"
                 className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-[var(--text-tertiary)]"
               />
@@ -2410,6 +2477,7 @@ export function ThemeManage() {
                       <button
                         type="button"
                         onClick={() => {
+                          requestAdminData();
                           setExpandedTaskId((current) => (current === task.id ? null : task.id));
                           setNodeSearch("");
                         }}
@@ -2426,7 +2494,10 @@ export function ThemeManage() {
                         <Search size={14} className="text-[var(--text-tertiary)]" />
                         <input
                           value={nodeSearch}
-                          onChange={(event) => setNodeSearch(event.target.value)}
+                          onChange={(event) => {
+                            requestAdminData();
+                            setNodeSearch(event.target.value);
+                          }}
                           placeholder="搜索节点名称 / UUID / 分组 / 地区"
                           className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-[var(--text-tertiary)]"
                         />

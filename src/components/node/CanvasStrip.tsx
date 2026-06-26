@@ -23,10 +23,16 @@ interface AnimationSubscriber {
   lastPaintAt: number;
 }
 
+const MAX_CANVAS_DPR = 1.5;
 const animationSubscribers = new Set<AnimationSubscriber>();
 let animationFrameId: number | null = null;
 
 function runAnimationLoop(now: number) {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    animationFrameId = window.requestAnimationFrame(runAnimationLoop);
+    return;
+  }
+
   for (const subscriber of animationSubscribers) {
     if (now - subscriber.lastPaintAt < subscriber.frameIntervalMs) continue;
     subscriber.lastPaintAt = now;
@@ -141,6 +147,7 @@ export function CanvasStrip({
   onHoverIndex,
 }: CanvasStripProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const visibleRef = useRef(true);
   const [width, setWidth] = useState(0);
 
   useEffect(() => {
@@ -148,7 +155,8 @@ export function CanvasStrip({
     if (!canvas) return;
 
     const updateWidth = () => {
-      setWidth(canvas.clientWidth);
+      const nextWidth = Math.round(canvas.clientWidth);
+      setWidth((current) => (current === nextWidth ? current : nextWidth));
     };
 
     updateWidth();
@@ -161,9 +169,23 @@ export function CanvasStrip({
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visibleRef.current = entry ? entry.isIntersecting || entry.intersectionRatio > 0 : true;
+      },
+      { rootMargin: "180px" },
+    );
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
     if (!canvas || width <= 0) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR);
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
 
@@ -171,6 +193,7 @@ export function CanvasStrip({
     if (!ctx) return;
 
     const paint = (now: number) => {
+      if (animated && !visibleRef.current) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
       draw(ctx, width, height, now);

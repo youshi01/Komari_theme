@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import type { MarqueeStyleSettings } from "@/hooks/useVisualStyle";
 import { CanvasStrip } from "./CanvasStrip";
 import {
@@ -43,12 +43,30 @@ export function MetricBar({
   marqueeStyle,
 }: MetricBarProps) {
   const clamped = Math.max(0, Math.min(1, fraction));
-  const points = buildProgressPoints(clamped, marqueeStyle);
+  const points = useMemo(
+    () => buildProgressPoints(clamped, marqueeStyle),
+    [clamped, marqueeStyle],
+  );
   const activeColor = paint.kind === "gradient" ? paint.from : paint.color;
   const accentColor =
     paint.kind === "gradient"
       ? paint.to
       : "var(--ys-marquee-peak, var(--status-warning))";
+  const draw = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, height: number, now: number) =>
+      drawMarqueeStrip(ctx, width, height, {
+        points,
+        style: marqueeStyle,
+        variant: "progress",
+        now,
+        colors: {
+          base: activeColor,
+          accent: accentColor,
+          inactive: "var(--progress-bg)",
+        },
+      }),
+    [accentColor, activeColor, marqueeStyle, points],
+  );
 
   return (
     <div className="metric-item">
@@ -79,19 +97,7 @@ export function MetricBar({
           redrawKey={redrawKey}
           animated={shouldAnimateMarqueeStyle(marqueeStyle)}
           frameIntervalMs={getMarqueeFrameInterval(marqueeStyle)}
-          draw={(ctx, width, height, now) =>
-            drawMarqueeStrip(ctx, width, height, {
-              points,
-              style: marqueeStyle,
-              variant: "progress",
-              now,
-              colors: {
-                base: activeColor,
-                accent: accentColor,
-                inactive: "var(--progress-bg)",
-              },
-            })
-          }
+          draw={draw}
         />
       </div>
     </div>

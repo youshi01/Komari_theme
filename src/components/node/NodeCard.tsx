@@ -1,4 +1,12 @@
-import { memo, useId, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  memo,
+  useCallback,
+  useId,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Link } from "react-router-dom";
 import {
   Cpu,
@@ -185,6 +193,19 @@ function getGlowStyle(percent: number, gaugeStyle: GaugeStylePresetId) {
   return { strokeDasharray: `${percent} 100` } as CSSProperties;
 }
 
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function getRadarScanDelay(seed: string, index: number) {
+  const seedOffset = hashString(seed) % 1600;
+  return `-${seedOffset + index * 280}ms`;
+}
+
 function ringPoint(percent: number, radius = 38) {
   const angle = (percent * 3.6 * Math.PI) / 180;
   return {
@@ -325,8 +346,7 @@ function renderGaugeBackArt(
           strokeDasharray: "1 5.8",
         }, 42)}
         {renderGaugePath(variant, "radar-gauge-art-scan-trail", {
-          strokeDasharray: `10 3 7 4 ${Math.max(0, percent - 24)} 100`,
-          strokeDashoffset: `${100 - percent}`,
+          strokeDasharray: "10 3 7 4 18 100",
         })}
       </>
     );
@@ -863,6 +883,7 @@ export const NodeCard = memo(function NodeCard({
           <RadarMetricPanel
             variant={gaugeDashboardStyle}
             settings={dashboardSettings}
+            scanSeed={node.uuid}
             cpuPct={node.cpuPct}
             cpuCores={node.cpu_cores}
             ramPct={node.ramPct}
@@ -1584,6 +1605,7 @@ function LiquidGauge({
 function RadarMetricPanel({
   variant,
   settings,
+  scanSeed,
   cpuPct,
   cpuCores,
   ramPct,
@@ -1603,6 +1625,7 @@ function RadarMetricPanel({
 }: {
   variant: GaugeDashboardStyleId;
   settings: DashboardSettings;
+  scanSeed: string;
   cpuPct: number;
   cpuCores: number;
   ramPct: number;
@@ -1642,6 +1665,7 @@ function RadarMetricPanel({
         unit="%"
         fraction={cpuPct / 100}
         color="var(--ys-metric-cpu, var(--progress-cpu))"
+        scanDelay={getRadarScanDelay(scanSeed, 0)}
         detailText={`${cpuCores || 0} 核`}
       />
       <RadarGauge
@@ -1653,6 +1677,7 @@ function RadarMetricPanel({
         unit="%"
         fraction={ramPct / 100}
         color="var(--ys-metric-memory, var(--progress-memory))"
+        scanDelay={getRadarScanDelay(scanSeed, 1)}
         detailText={`${formatBytes(ramUsed)} / ${formatBytes(ramTotal)}`}
       />
       <RadarGauge
@@ -1664,6 +1689,7 @@ function RadarMetricPanel({
         unit="%"
         fraction={diskPct / 100}
         color="var(--ys-metric-disk, var(--progress-disk))"
+        scanDelay={getRadarScanDelay(scanSeed, 2)}
         detailText={`${formatBytes(diskUsed)} / ${formatBytes(diskTotal)}`}
       />
       <RadarGauge
@@ -1674,6 +1700,7 @@ function RadarMetricPanel({
         valueText={loadValue.toFixed(2)}
         fraction={loadFraction}
         color="var(--ys-metric-load, var(--progress-cpu))"
+        scanDelay={getRadarScanDelay(scanSeed, 3)}
       />
       <RadarGauge
         variant={variant}
@@ -1684,6 +1711,7 @@ function RadarMetricPanel({
         unit={upRate.unit}
         fraction={upRate.bitsPerSec / upLimit.bitsPerSec}
         color="var(--ys-marquee-up, var(--progress-cpu))"
+        scanDelay={getRadarScanDelay(scanSeed, 4)}
         limitLabel={`上限 ${upLimit.label}`}
       />
       <RadarGauge
@@ -1695,6 +1723,7 @@ function RadarMetricPanel({
         unit={downRate.unit}
         fraction={downRate.bitsPerSec / downLimit.bitsPerSec}
         color="var(--ys-marquee-down, var(--status-success))"
+        scanDelay={getRadarScanDelay(scanSeed, 5)}
         limitLabel={`上限 ${downLimit.label}`}
       />
       <RadarGauge
@@ -1706,6 +1735,7 @@ function RadarMetricPanel({
         unit={latency != null ? "ms" : undefined}
         fraction={latency != null ? latency / safeLatencyMax : 0}
         color="var(--ys-metric-latency, var(--status-online))"
+        scanDelay={getRadarScanDelay(scanSeed, 6)}
         limitLabel={`${safeLatencyMax}ms`}
         empty={latency == null}
       />
@@ -1718,6 +1748,7 @@ function RadarMetricPanel({
         unit={loss != null ? "%" : undefined}
         fraction={loss != null ? loss / 100 : 0}
         color="var(--ys-metric-loss, var(--status-offline))"
+        scanDelay={getRadarScanDelay(scanSeed, 7)}
         limitLabel="100%"
         empty={loss == null}
       />
@@ -1737,6 +1768,7 @@ function RadarGauge({
   limitLabel = "100%",
   detailText,
   empty = false,
+  scanDelay,
 }: {
   variant: GaugeDashboardStyleId;
   gaugeStyle: GaugeStylePresetId;
@@ -1749,6 +1781,7 @@ function RadarGauge({
   limitLabel?: string;
   detailText?: string;
   empty?: boolean;
+  scanDelay?: string;
 }) {
   const percent = Math.round(clampFraction(fraction) * 100);
   const realValue = detailText ?? `${valueText}${unit ? ` ${unit}` : ""}`;
@@ -1769,6 +1802,7 @@ function RadarGauge({
           "--radar-color": color,
           "--radar-percent": percent,
           "--radar-needle-angle": `${needleAngle}deg`,
+          "--radar-scan-delay": scanDelay,
         } as CSSProperties
       }
       title={title}
@@ -1952,14 +1986,33 @@ function TrafficDotStrip({
   marqueeStyle: MarqueeStyleSettings;
   redrawKey: string;
 }) {
-  const points = samples.map((sample) => {
-    const active = sample.value > 0;
-    return {
-      active,
-      level: active ? Math.max(0.08, Math.min(1, sample.level)) : 0.16,
-      opacity: active ? Math.min(1, sample.opacity + 0.05) : 0.46,
-    };
-  });
+  const points = useMemo(
+    () =>
+      samples.map((sample) => {
+        const active = sample.value > 0;
+        return {
+          active,
+          level: active ? Math.max(0.08, Math.min(1, sample.level)) : 0.16,
+          opacity: active ? Math.min(1, sample.opacity + 0.05) : 0.46,
+        };
+      }),
+    [samples],
+  );
+  const draw = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, height: number, now: number) =>
+      drawMarqueeStrip(ctx, width, height, {
+        points,
+        style: marqueeStyle,
+        variant: "trend",
+        now,
+        colors: {
+          base: color,
+          accent: "var(--ys-marquee-peak, white)",
+          inactive: "var(--ys-marquee-idle, var(--progress-bg))",
+        },
+      }),
+    [color, marqueeStyle, points],
+  );
 
   return (
     <CanvasStrip
@@ -1969,19 +2022,7 @@ function TrafficDotStrip({
       redrawKey={redrawKey}
       animated={shouldAnimateMarqueeStyle(marqueeStyle)}
       frameIntervalMs={getMarqueeFrameInterval(marqueeStyle)}
-      draw={(ctx, width, height, now) =>
-        drawMarqueeStrip(ctx, width, height, {
-          points,
-          style: marqueeStyle,
-          variant: "trend",
-          now,
-          colors: {
-            base: color,
-            accent: "var(--ys-marquee-peak, white)",
-            inactive: "var(--ys-marquee-idle, var(--progress-bg))",
-          },
-        })
-      }
+      draw={draw}
     />
   );
 }

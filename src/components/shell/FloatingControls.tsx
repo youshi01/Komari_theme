@@ -39,6 +39,7 @@ import {
   RADAR_LATENCY_MAX_MIN_MS,
   RADAR_LATENCY_MAX_STEP_MS,
   VISUAL_COLOR_CONTROLS,
+  normalizeVisualStyleSettings,
   patchLiquidDashboardSetting,
   patchDashboardSetting,
   useVisualStyle,
@@ -56,6 +57,9 @@ import {
   getBackgroundSources,
   normalizeBackgroundSettings,
 } from "@/utils/backgroundSettings";
+import { saveThemeSettings } from "@/services/api";
+import { queryClient } from "@/services/queryClient";
+import type { PublicConfig } from "@/types/komari";
 import { clsx } from "clsx";
 
 const APPEARANCE_OPTIONS = [
@@ -104,11 +108,14 @@ export function FloatingControls() {
   const [gradientPanelOpen, setGradientPanelOpen] = useState(false);
   const [stylePanelOpen, setStylePanelOpen] = useState(false);
   const [sortPanelOpen, setSortPanelOpen] = useState(false);
+  const [applyingGlobalVisualStyle, setApplyingGlobalVisualStyle] = useState(false);
+  const [globalVisualStyleStatus, setGlobalVisualStyleStatus] = useState<string | null>(null);
   const [visualStyleTab, setVisualStyleTab] =
     useState<VisualStyleQuickTab>("card");
   const anyPanelOpen = gradientPanelOpen || stylePanelOpen || sortPanelOpen;
   const showAdmin = config?.theme_settings?.enableAdminButton !== false;
   const showThemeManage = Boolean(me?.logged_in);
+  const canApplyGlobalVisualStyle = showThemeManage && Boolean(config?.theme);
   const isThemeManageView = searchParams.get("view") === "theme-manage";
   const showSyncWarning = failureStreak >= 2;
   const hiddenTabIndex = collapsed ? -1 : undefined;
@@ -137,6 +144,34 @@ export function FloatingControls() {
     visualStyle.dashboardStyle === "dial"
       ? visualStyle.dashboardStyle
       : null;
+
+  const handleApplyGlobalVisualStyle = async () => {
+    if (!canApplyGlobalVisualStyle || !config?.theme) return;
+    setApplyingGlobalVisualStyle(true);
+    setGlobalVisualStyleStatus(null);
+
+    try {
+      const nextSettings: PublicConfig["theme_settings"] & Record<string, unknown> = {
+        ...(config.theme_settings ?? {}),
+        visualStyle: normalizeVisualStyleSettings(visualStyle),
+      };
+      await saveThemeSettings(config.theme, nextSettings);
+      queryClient.setQueryData<PublicConfig>(["public"], (current) =>
+        current
+          ? {
+              ...current,
+              theme_settings: nextSettings,
+            }
+          : current,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["public"] });
+      setGlobalVisualStyleStatus("已应用到全站默认");
+    } catch (error) {
+      setGlobalVisualStyleStatus(error instanceof Error ? error.message : "应用全局失败");
+    } finally {
+      setApplyingGlobalVisualStyle(false);
+    }
+  };
 
   useEffect(() => {
     if (!anyPanelOpen) return;
@@ -536,6 +571,18 @@ export function FloatingControls() {
                 <div className="gradient-quick-title">卡片与样式</div>
                 <div className="gradient-quick-subtitle">{visualStyleSourceLabel}</div>
               </div>
+              <div className="gradient-quick-actions">
+                {canApplyGlobalVisualStyle && (
+                  <button
+                    type="button"
+                    className="theme-manage-button is-compact is-primary"
+                    onClick={handleApplyGlobalVisualStyle}
+                    disabled={applyingGlobalVisualStyle}
+                    title="将当前卡片与样式保存为全站默认"
+                  >
+                    <span>{applyingGlobalVisualStyle ? "应用中" : "应用全局"}</span>
+                  </button>
+                )}
               <button
                 type="button"
                 className="theme-manage-button is-compact"
@@ -545,7 +592,11 @@ export function FloatingControls() {
               >
                 <span>恢复全站默认</span>
               </button>
+              </div>
             </div>
+            {globalVisualStyleStatus && (
+              <div className="gradient-quick-status">{globalVisualStyleStatus}</div>
+            )}
 
             <div className="visual-style-tab-list" role="tablist" aria-label="样式设置分类">
               {VISUAL_STYLE_QUICK_TABS.map((tab) => (
