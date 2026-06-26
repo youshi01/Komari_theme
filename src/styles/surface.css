@@ -1239,6 +1239,10 @@
   font-size: 13px;
 }
 
+.theme-manage-collapsible-panel.is-collapsed .instance-panel-header {
+  margin-bottom: 0;
+}
+
 .control-group {
   display: inline-flex;
   align-items: center;

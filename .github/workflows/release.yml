@@ -66,6 +66,30 @@ jobs:
           test -f komari-theme.json
           test -f "${{ steps.meta.outputs.zip_name }}"
 
+      - name: Read release notes
+        if: github.event_name == 'push'
+        env:
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+          ZIP_NAME: ${{ steps.meta.outputs.zip_name }}
+        run: |
+          python <<'PY'
+          import os
+          import pathlib
+          import re
+
+          version = os.environ["RELEASE_VERSION"]
+          zip_name = os.environ["ZIP_NAME"]
+          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          pattern = re.compile(
+              rf"^##\s+v{re.escape(version)}\s*$([\s\S]*?)(?=^##\s+v|\Z)",
+              re.MULTILINE,
+          )
+          match = pattern.search(changelog)
+          section = match.group(1).strip() if match else f"- Release v{version}."
+          body = f"## v{version}\n\n{section}\n\nAsset:\n- `{zip_name}`\n"
+          pathlib.Path("release-notes.md").write_text(body, encoding="utf-8")
+          PY
+
       - name: Upload build artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
@@ -80,9 +104,5 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: komari-theme-YS v${{ steps.meta.outputs.version }}
-          body: |
-            komari-theme-YS theme release v${{ steps.meta.outputs.version }}.
-
-            Asset:
-            - `${{ steps.meta.outputs.zip_name }}`
+          body_path: release-notes.md
           files: ${{ steps.meta.outputs.zip_name }}

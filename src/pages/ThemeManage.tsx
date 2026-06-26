@@ -392,6 +392,8 @@ export function ThemeManage() {
   const [draftNodeSort, setDraftNodeSort] =
     useState<HomepageNodeSortSettings>(DEFAULT_HOMEPAGE_NODE_SORT);
   const [draggingNodeUuid, setDraggingNodeUuid] = useState<string | null>(null);
+  const [visualStylePanelExpanded, setVisualStylePanelExpanded] = useState(false);
+  const [gradientPanelExpanded, setGradientPanelExpanded] = useState(false);
   const [orderListExpanded, setOrderListExpanded] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
@@ -1041,8 +1043,23 @@ export function ThemeManage() {
       <InstancePanel
         title="全站默认卡片与样式"
         description="管理员保存后作为游客和未设置本机样式用户的默认卡片外壳、信息展板、数据条动态样式和配色；首页快捷面板仍可本机覆盖。"
-        aside={<Layers size={16} />}
+        aside={
+          <div className="flex items-center justify-end gap-2">
+            <Layers size={16} />
+            <button
+              type="button"
+              className="theme-manage-button is-compact"
+              onClick={() => setVisualStylePanelExpanded((expanded) => !expanded)}
+              aria-expanded={visualStylePanelExpanded}
+            >
+              {visualStylePanelExpanded ? <ChevronsUp size={13} /> : <ChevronsDown size={13} />}
+              <span>{visualStylePanelExpanded ? "收起设置" : "展开设置"}</span>
+            </button>
+          </div>
+        }
+        className={clsx("theme-manage-collapsible-panel", !visualStylePanelExpanded && "is-collapsed")}
       >
+        {visualStylePanelExpanded && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="grid gap-4">
             <div className="surface-inset p-4">
@@ -1516,13 +1533,29 @@ export function ThemeManage() {
             </div>
           </div>
         </div>
+        )}
       </InstancePanel>
 
       <InstancePanel
         title="全站默认渐变背板"
         description="管理员保存后会作为未设置本机外观用户的默认样式；用户在首页自行调整后，本机设置仍会优先生效。"
-        aside={<Palette size={16} />}
+        aside={
+          <div className="flex items-center justify-end gap-2">
+            <Palette size={16} />
+            <button
+              type="button"
+              className="theme-manage-button is-compact"
+              onClick={() => setGradientPanelExpanded((expanded) => !expanded)}
+              aria-expanded={gradientPanelExpanded}
+            >
+              {gradientPanelExpanded ? <ChevronsUp size={13} /> : <ChevronsDown size={13} />}
+              <span>{gradientPanelExpanded ? "收起设置" : "展开设置"}</span>
+            </button>
+          </div>
+        }
+        className={clsx("theme-manage-collapsible-panel", !gradientPanelExpanded && "is-collapsed")}
       >
+        {gradientPanelExpanded && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="flex min-w-0 flex-col gap-4">
             <div className="surface-inset flex flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -1778,6 +1811,7 @@ export function ThemeManage() {
             </div>
           </div>
         </div>
+        )}
       </InstancePanel>
 
       <InstancePanel
