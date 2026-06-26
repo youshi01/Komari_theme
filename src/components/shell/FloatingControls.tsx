@@ -69,23 +69,6 @@ const VISUAL_STYLE_QUICK_TABS = [
   { id: "palette", label: "配色" },
 ] as const;
 type VisualStyleQuickTab = (typeof VISUAL_STYLE_QUICK_TABS)[number]["id"];
-const COLLAPSED_STORAGE_KEY = "komari-theme-YS:floating-controls-collapsed";
-
-function readStoredCollapsed() {
-  try {
-    return localStorage.getItem(COLLAPSED_STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function persistCollapsed(value: boolean) {
-  try {
-    localStorage.setItem(COLLAPSED_STORAGE_KEY, value ? "1" : "0");
-  } catch {
-    // Keep the in-memory state if localStorage is unavailable.
-  }
-}
 
 export function FloatingControls() {
   const controlsRef = useRef<HTMLDivElement | null>(null);
@@ -117,7 +100,7 @@ export function FloatingControls() {
   const { data: config } = usePublicConfig();
   const { failureStreak } = useNodeStoreStatus();
   const [searchParams] = useSearchParams();
-  const [collapsed, setCollapsed] = useState(readStoredCollapsed);
+  const [collapsed, setCollapsed] = useState(true);
   const [gradientPanelOpen, setGradientPanelOpen] = useState(false);
   const [stylePanelOpen, setStylePanelOpen] = useState(false);
   const [sortPanelOpen, setSortPanelOpen] = useState(false);
@@ -316,7 +299,6 @@ export function FloatingControls() {
             onClick={() => {
               setCollapsed((value) => {
                 const next = !value;
-                persistCollapsed(next);
                 if (next) {
                   setGradientPanelOpen(false);
                   setStylePanelOpen(false);

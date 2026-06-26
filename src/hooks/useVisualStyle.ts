@@ -36,6 +36,14 @@ export type MarqueePalettePresetId =
   | "neon"
   | "pastel"
   | "status"
+  | "cyberpunk"
+  | "electric"
+  | "sunset"
+  | "acid"
+  | "plasma"
+  | "ember"
+  | "matrix"
+  | "auroraPop"
   | "custom";
 export type MarqueeShapeId =
   | "classic"
@@ -437,16 +445,16 @@ export const MARQUEE_PALETTE_PRESETS: MarqueePalettePreset[] = [
     label: "霓虹警戒",
     description: "紫青粉橙，对比最强",
     colors: {
-      cpu: "#a855f7",
-      memory: "#06b6d4",
-      disk: "#f97316",
-      load: "#22d3ee",
-      latency: "#f0abfc",
-      loss: "#fb7185",
-      up: "#a855f7",
-      down: "#06b6d4",
-      peak: "#fb7185",
-      idle: "#64748b",
+      cpu: "#c026d3",
+      memory: "#00e5ff",
+      disk: "#ff8a00",
+      load: "#39ff14",
+      latency: "#ff4fd8",
+      loss: "#ff1744",
+      up: "#d946ef",
+      down: "#00d5ff",
+      peak: "#ffea00",
+      idle: "#6b7280",
     },
   },
   {
@@ -480,6 +488,142 @@ export const MARQUEE_PALETTE_PRESETS: MarqueePalettePreset[] = [
       up: "#22c55e",
       down: "#0ea5e9",
       peak: "#ef4444",
+      idle: "#94a3b8",
+    },
+  },
+  {
+    id: "cyberpunk",
+    label: "赛博霓虹",
+    description: "黄、粉、青高反差，夜色里最醒目",
+    colors: {
+      cpu: "#facc15",
+      memory: "#ff2bd6",
+      disk: "#ff7a00",
+      load: "#00f5d4",
+      latency: "#38bdf8",
+      loss: "#ff2d55",
+      up: "#f0ff00",
+      down: "#00e5ff",
+      peak: "#ff2bd6",
+      idle: "#71717a",
+    },
+  },
+  {
+    id: "electric",
+    label: "电光蓝紫",
+    description: "蓝紫主场，夹一点荧光绿提亮",
+    colors: {
+      cpu: "#2563eb",
+      memory: "#7c3aed",
+      disk: "#06b6d4",
+      load: "#a3e635",
+      latency: "#22d3ee",
+      loss: "#f43f5e",
+      up: "#84cc16",
+      down: "#3b82f6",
+      peak: "#a855f7",
+      idle: "#64748b",
+    },
+  },
+  {
+    id: "sunset",
+    label: "落日能量",
+    description: "橙红紫渐变感强，适合暖色背景",
+    colors: {
+      cpu: "#fb923c",
+      memory: "#e879f9",
+      disk: "#f97316",
+      load: "#facc15",
+      latency: "#f472b6",
+      loss: "#dc2626",
+      up: "#f59e0b",
+      down: "#ec4899",
+      peak: "#fb7185",
+      idle: "#9ca3af",
+    },
+  },
+  {
+    id: "acid",
+    label: "酸性绿光",
+    description: "荧光绿和青色很亮，监控感强",
+    colors: {
+      cpu: "#a3ff12",
+      memory: "#00ffc6",
+      disk: "#faff00",
+      load: "#22ff88",
+      latency: "#00e0ff",
+      loss: "#ff005c",
+      up: "#7cff00",
+      down: "#00f5ff",
+      peak: "#faff00",
+      idle: "#6ee7b7",
+    },
+  },
+  {
+    id: "plasma",
+    label: "等离子",
+    description: "紫、粉、橙连续高亮，动起来更有能量感",
+    colors: {
+      cpu: "#8b5cf6",
+      memory: "#ec4899",
+      disk: "#fb923c",
+      load: "#f97316",
+      latency: "#d946ef",
+      loss: "#ef4444",
+      up: "#a855f7",
+      down: "#f472b6",
+      peak: "#fb7185",
+      idle: "#78716c",
+    },
+  },
+  {
+    id: "ember",
+    label: "熔岩警戒",
+    description: "红橙黄强烈，适合突出压力和峰值",
+    colors: {
+      cpu: "#ef4444",
+      memory: "#fb7185",
+      disk: "#f97316",
+      load: "#f59e0b",
+      latency: "#facc15",
+      loss: "#b91c1c",
+      up: "#fb923c",
+      down: "#f97316",
+      peak: "#fde047",
+      idle: "#a8a29e",
+    },
+  },
+  {
+    id: "matrix",
+    label: "矩阵绿",
+    description: "绿系高亮但保留红色异常点",
+    colors: {
+      cpu: "#22c55e",
+      memory: "#84cc16",
+      disk: "#10b981",
+      load: "#a3e635",
+      latency: "#2dd4bf",
+      loss: "#ef4444",
+      up: "#39ff14",
+      down: "#00ff9d",
+      peak: "#bef264",
+      idle: "#65a30d",
+    },
+  },
+  {
+    id: "auroraPop",
+    label: "极光撞色",
+    description: "青蓝紫粉互相切换，醒目但不刺眼",
+    colors: {
+      cpu: "#38bdf8",
+      memory: "#a78bfa",
+      disk: "#f0abfc",
+      load: "#34d399",
+      latency: "#22d3ee",
+      loss: "#fb7185",
+      up: "#2dd4bf",
+      down: "#818cf8",
+      peak: "#f472b6",
       idle: "#94a3b8",
     },
   },
@@ -675,6 +819,14 @@ function isMarqueePalette(value: unknown): value is MarqueePalettePresetId {
     value === "neon" ||
     value === "pastel" ||
     value === "status" ||
+    value === "cyberpunk" ||
+    value === "electric" ||
+    value === "sunset" ||
+    value === "acid" ||
+    value === "plasma" ||
+    value === "ember" ||
+    value === "matrix" ||
+    value === "auroraPop" ||
     value === "custom"
   );
 }

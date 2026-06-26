@@ -2566,22 +2566,81 @@
 }
 
 @media (max-width: 760px) {
+  .node-card-list.is-strip-layout {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-bottom: 8px;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .node-card-list.is-strip-layout > div {
+    width: 852px;
+    max-width: none;
+    scroll-snap-align: start;
+  }
+
+  .server-card.is-strip-card {
+    min-width: 852px;
+  }
+
   .server-card.is-strip-card .strip-card-content {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    grid-template-columns: 190px 620px;
+    grid-template-rows: auto auto;
+    align-items: stretch;
+    gap: 9px 14px;
+    padding: 12px 14px;
   }
 
-  .strip-card-metrics,
-  .strip-card-telemetry {
-    grid-column: auto;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .strip-card-identity {
+    grid-row: 1 / 3;
+    align-content: center;
+    gap: 7px;
   }
-}
 
-@media (max-width: 420px) {
-  .strip-card-metrics,
+  .strip-card-metrics {
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
   .strip-card-telemetry {
-    grid-template-columns: 1fr;
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 7px;
+  }
+
+  .strip-card-metric {
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .strip-card-metric-head {
+    gap: 8px;
+  }
+
+  .strip-card-metric-bar {
+    height: 6px;
+  }
+
+  .strip-card-stat {
+    align-content: center;
+    gap: 3px;
+    padding: 7px 8px;
+    min-height: 46px;
+  }
+
+  .strip-card-stat-label {
+    gap: 5px;
+  }
+
+  .strip-card-tags .dstatus-tag-chip,
+  .strip-card-tags .dstatus-tag-more {
+    max-width: 5.6rem;
   }
 }
 
@@ -3611,18 +3670,22 @@
   display: grid;
   min-width: 0;
   justify-items: center;
+  isolation: isolate;
   overflow: hidden;
   padding: 8px 7px 7px;
-  border: 1px solid color-mix(in srgb, var(--liquid-color) 25%, var(--border-subtle));
+  border: 1px solid color-mix(in srgb, var(--liquid-color) 36%, var(--border-subtle));
   border-radius: 16px;
   background:
-    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--liquid-color) 17%, transparent) 0%, transparent 60%),
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, white 10%, transparent) 0%, transparent 28%),
+    radial-gradient(circle at 78% 6%, color-mix(in srgb, var(--liquid-color) 22%, transparent) 0%, transparent 36%),
+    linear-gradient(135deg, color-mix(in srgb, var(--liquid-color) 10%, transparent) 0%, transparent 38%),
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--surface-elev) 74%, transparent) 0%,
-      color-mix(in srgb, var(--liquid-color) 8%, var(--surface-elev)) 100%
+      color-mix(in srgb, var(--surface-elev) 80%, transparent) 0%,
+      color-mix(in srgb, var(--liquid-color) 12%, var(--surface-elev)) 100%
     );
   box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--liquid-color) 8%, transparent),
     inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
     inset 0 -18px 30px color-mix(in srgb, var(--liquid-color) var(--liquid-bottom-mix, 7%), transparent),
     0 16px 30px -26px color-mix(in srgb, var(--liquid-color) var(--liquid-shadow-mix, 52%), black);
@@ -3636,8 +3699,31 @@
   pointer-events: none;
   background:
     linear-gradient(90deg, transparent 0 46%, color-mix(in srgb, white 12%, transparent) 47% 48%, transparent 49%),
-    repeating-linear-gradient(0deg, color-mix(in srgb, var(--liquid-color) 8%, transparent) 0 1px, transparent 1px 10px);
-  opacity: var(--liquid-texture-opacity, 0.28);
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--liquid-color) 10%, transparent) 0 1px, transparent 1px 10px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, white 6%, transparent) 0 1px, transparent 1px 14px);
+  opacity: var(--liquid-hud-opacity, 0.36);
+}
+
+.liquid-gauge::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  z-index: 0;
+  border-radius: 12px;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 0%,
+      transparent 34%,
+      color-mix(in srgb, white 20%, var(--liquid-color) 12%) 48%,
+      transparent 62%,
+      transparent 100%
+    );
+  mix-blend-mode: screen;
+  opacity: calc(var(--liquid-hud-opacity, 0.36) * 0.62);
+  transform: translateX(-82%);
+  animation: ys-liquid-card-scan var(--liquid-scan-ms, 3400ms) ease-in-out infinite;
 }
 
 .liquid-gauge.is-empty {
@@ -3647,6 +3733,7 @@
 .liquid-gauge[data-pressure="critical"] {
   border-color: color-mix(in srgb, var(--liquid-color) 42%, var(--status-offline));
   box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--liquid-color) 14%, transparent),
     inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
     inset 0 -18px 34px color-mix(in srgb, var(--liquid-color) 13%, transparent),
     0 18px 34px -24px color-mix(in srgb, var(--liquid-color) 72%, black);
@@ -3685,19 +3772,23 @@
   height: 72px;
   margin-top: 4px;
   overflow: visible;
-  filter: drop-shadow(0 10px 16px color-mix(in srgb, var(--liquid-color) var(--liquid-svg-glow-mix, 18%), transparent));
+  filter:
+    drop-shadow(0 10px 16px color-mix(in srgb, var(--liquid-color) var(--liquid-svg-glow-mix, 18%), transparent))
+    drop-shadow(0 0 7px color-mix(in srgb, var(--liquid-color) 18%, transparent));
 }
 
 .liquid-gauge-vessel {
-  fill: color-mix(in srgb, var(--surface-elev) 48%, transparent);
-  stroke: color-mix(in srgb, var(--liquid-color) 28%, var(--border-strong));
+  fill: color-mix(in srgb, var(--surface-elev) 34%, transparent);
+  stroke: color-mix(in srgb, var(--liquid-color) 42%, var(--border-strong));
   stroke-width: 2.2px;
   vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--liquid-color) 28%, transparent));
 }
 
 .liquid-gauge-fill {
-  fill: color-mix(in srgb, var(--liquid-color) 66%, white 4%);
+  fill: color-mix(in srgb, var(--liquid-color) 72%, white 8%);
   opacity: var(--liquid-fill-opacity, 0.72);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--liquid-color) 38%, transparent));
 }
 
 .liquid-gauge-wave {
@@ -3705,6 +3796,7 @@
   opacity: var(--liquid-wave-opacity, 0.82);
   transform-origin: center;
   animation: ys-liquid-wave var(--liquid-wave-ms, 3200ms) linear infinite;
+  filter: drop-shadow(0 -2px 4px color-mix(in srgb, white 26%, transparent));
 }
 
 .liquid-gauge-wave.is-back {
@@ -3726,10 +3818,11 @@
 
 .liquid-gauge-glass {
   fill: none;
-  stroke: color-mix(in srgb, white 42%, var(--liquid-color) 20%);
-  stroke-width: 1.6px;
+  stroke: color-mix(in srgb, white 48%, var(--liquid-color) 28%);
+  stroke-width: 1.7px;
   opacity: var(--liquid-glass-opacity, 0.72);
   vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--liquid-color) 24%, transparent));
 }
 
 .liquid-gauge-shine {
@@ -3761,23 +3854,35 @@
 }
 
 .liquid-tech-orbit,
+.liquid-tech-halo,
 .liquid-tech-grid,
 .liquid-tech-facet,
 .liquid-tech-signal,
 .liquid-tech-spine,
 .liquid-tech-rail,
+.liquid-tech-lane,
+.liquid-tech-ladder,
+.liquid-tech-brace,
 .liquid-tech-tick,
 .liquid-tech-reticle {
-  stroke: color-mix(in srgb, var(--liquid-color) 74%, white 8%);
+  stroke: color-mix(in srgb, var(--liquid-color) 82%, white 12%);
   stroke-width: 1.15px;
-  opacity: calc(var(--liquid-texture-opacity, 0.28) + 0.2);
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.18);
+  vector-effect: non-scaling-stroke;
+}
+
+.liquid-tech-panel {
+  fill: color-mix(in srgb, var(--liquid-color) 11%, transparent);
+  stroke: color-mix(in srgb, var(--liquid-color) 34%, white 8%);
+  stroke-width: 0.9px;
+  opacity: var(--liquid-panel-opacity, 0.32);
   vector-effect: non-scaling-stroke;
 }
 
 .liquid-tech-sweep {
-  fill: color-mix(in srgb, var(--liquid-color) 18%, transparent);
+  fill: color-mix(in srgb, var(--liquid-color) 24%, transparent);
   stroke: none;
-  opacity: calc(var(--liquid-texture-opacity, 0.28) + 0.12);
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.08);
   transform-origin: 50px 50px;
   animation: ys-liquid-sweep var(--liquid-sweep-ms, 6080ms) linear infinite;
 }
@@ -3786,14 +3891,16 @@
 .liquid-tech-packet,
 .liquid-tech-cell,
 .liquid-tech-core,
+.liquid-tech-prism,
 .liquid-tech-spark {
   fill: color-mix(in srgb, var(--liquid-color) 88%, white 12%);
-  opacity: calc(var(--liquid-texture-opacity, 0.28) + 0.34);
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.28);
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--liquid-color) 56%, transparent));
 }
 
 .liquid-tech-node,
 .liquid-tech-core,
+.liquid-tech-prism,
 .liquid-tech-spark {
   animation: ys-liquid-node-pulse var(--liquid-pulse-ms, 4000ms) ease-in-out infinite;
 }
@@ -3802,15 +3909,43 @@
   animation-delay: -520ms;
 }
 
+.liquid-tech-node.is-three {
+  animation-delay: -1040ms;
+}
+
+.liquid-tech-signal,
+.liquid-tech-lane,
+.liquid-tech-ladder,
+.liquid-tech-brace {
+  stroke-dasharray: 7 6;
+  animation: ys-liquid-dash var(--liquid-drift-ms, 5500ms) linear infinite;
+}
+
 .liquid-gauge-tech.is-sphere .liquid-tech-orbit {
   stroke-dasharray: 18 9 4 7;
   transform-origin: 50px 50px;
   animation: ys-liquid-orbit var(--liquid-orbit-ms, 5120ms) linear infinite;
 }
 
+.liquid-gauge-tech.is-sphere .liquid-tech-halo {
+  stroke-dasharray: 3 6 14 9;
+  animation: ys-liquid-dash var(--liquid-drift-ms, 5500ms) linear infinite;
+}
+
+.liquid-gauge-tech.is-sphere .liquid-tech-halo.is-inner {
+  stroke-dasharray: 10 8;
+  animation-direction: reverse;
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.04);
+}
+
 .liquid-gauge-tech.is-sphere .liquid-tech-orbit.is-b {
   animation-direction: reverse;
-  opacity: calc(var(--liquid-texture-opacity, 0.28) + 0.12);
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.08);
+}
+
+.liquid-gauge-tech.is-sphere .liquid-tech-orbit.is-c {
+  animation-duration: var(--liquid-drift-ms, 5500ms);
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.02);
 }
 
 .liquid-gauge-tech.is-capsule .liquid-tech-rail {
@@ -3832,9 +3967,19 @@
   animation-delay: -700ms;
 }
 
+.liquid-gauge-tech.is-capsule .liquid-tech-packet.is-three {
+  animation: ys-liquid-packet-x var(--liquid-drift-ms, 5500ms) ease-in-out infinite reverse;
+  animation-delay: -360ms;
+}
+
+.liquid-gauge-tech.is-capsule .liquid-tech-panel,
+.liquid-gauge-tech.is-segmented .liquid-tech-panel {
+  animation: ys-liquid-panel-breathe var(--liquid-pulse-ms, 4000ms) ease-in-out infinite;
+}
+
 .liquid-gauge-tech.is-column .liquid-tech-tick {
   stroke-width: 1px;
-  opacity: calc(var(--liquid-texture-opacity, 0.28) + 0.3);
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.26);
 }
 
 .liquid-gauge-tech.is-column .liquid-tech-spine {
@@ -3847,13 +3992,32 @@
   animation: ys-liquid-packet-y var(--liquid-wave-ms, 3200ms) ease-in-out infinite;
 }
 
+.liquid-gauge-tech.is-column .liquid-tech-packet.is-two {
+  animation-delay: -820ms;
+  animation-direction: reverse;
+}
+
+.liquid-gauge-tech.is-column .liquid-tech-panel {
+  fill: color-mix(in srgb, var(--liquid-color) 8%, transparent);
+}
+
 .liquid-gauge-tech.is-lens .liquid-tech-grid {
-  opacity: calc(var(--liquid-texture-opacity, 0.28) + 0.15);
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.12);
 }
 
 .liquid-gauge-tech.is-lens .liquid-tech-reticle {
   stroke-dasharray: 6 4;
   animation: ys-liquid-dash var(--liquid-reticle-ms, 3776ms) linear infinite;
+}
+
+.liquid-gauge-tech.is-lens .liquid-tech-reticle.is-outer {
+  stroke-dasharray: 2 7 10 8;
+  animation-direction: reverse;
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.04);
+}
+
+.liquid-gauge-tech.is-lens .liquid-tech-panel {
+  fill: color-mix(in srgb, var(--liquid-color) 9%, transparent);
 }
 
 .liquid-gauge-tech.is-segmented .liquid-tech-cell {
@@ -3862,19 +4026,37 @@
   animation: ys-liquid-cell-flicker var(--liquid-cell-ms, 3648ms) ease-in-out infinite;
 }
 
+.liquid-gauge-tech.is-segmented .liquid-tech-cell.is-active {
+  fill: color-mix(in srgb, var(--liquid-color) 80%, white 8%);
+  stroke: color-mix(in srgb, white 34%, var(--liquid-color) 66%);
+}
+
 .liquid-gauge-tech.is-segmented .liquid-tech-cell:nth-child(2n) {
   animation-delay: -420ms;
 }
 
 .liquid-gauge-tech.is-crystal .liquid-tech-facet {
   stroke-width: 1px;
-  opacity: calc(var(--liquid-texture-opacity, 0.28) + 0.24);
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.2);
 }
 
 .liquid-gauge-tech.is-crystal .liquid-tech-core {
   fill: color-mix(in srgb, var(--liquid-color) 18%, transparent);
   stroke: color-mix(in srgb, var(--liquid-color) 66%, white 8%);
   stroke-width: 1.2px;
+  transform-origin: 50px 50px;
+}
+
+.liquid-gauge-tech.is-crystal .liquid-tech-prism {
+  fill: color-mix(in srgb, white 8%, var(--liquid-color) 26%);
+  stroke: color-mix(in srgb, white 28%, var(--liquid-color) 72%);
+  stroke-width: 0.9px;
+  transform-origin: 50px 50px;
+  animation-duration: var(--liquid-reticle-ms, 3776ms);
+}
+
+.liquid-gauge-tech.is-crystal .liquid-tech-sweep {
+  opacity: calc(var(--liquid-hud-opacity, 0.36) + 0.02);
 }
 
 .liquid-gauge-tech.is-drop .liquid-tech-orbit {
@@ -3916,6 +4098,28 @@
   border-radius: 14px;
 }
 
+.liquid-gauge[data-shape="sphere"] {
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--liquid-color) 18%, transparent) 0%, transparent 44%),
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, white 11%, transparent) 0%, transparent 28%),
+    linear-gradient(145deg, color-mix(in srgb, var(--liquid-color) 10%, transparent), transparent 44%),
+    color-mix(in srgb, var(--surface-elev) 80%, transparent);
+}
+
+.liquid-gauge[data-shape="capsule"] {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--liquid-color) 12%, transparent), transparent 28% 72%, color-mix(in srgb, var(--liquid-color) 10%, transparent)),
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, white 10%, transparent) 0%, transparent 34%),
+    color-mix(in srgb, var(--surface-elev) 80%, transparent);
+}
+
+.liquid-gauge[data-shape="segmented"] {
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--liquid-color) 8%, transparent) 0 1px, transparent 1px 12px),
+    linear-gradient(90deg, color-mix(in srgb, var(--liquid-color) 12%, transparent), transparent 26% 74%, color-mix(in srgb, var(--liquid-color) 10%, transparent)),
+    color-mix(in srgb, var(--surface-elev) 80%, transparent);
+}
+
 .liquid-gauge[data-shape="capsule"] .liquid-gauge-svg,
 .liquid-gauge[data-shape="segmented"] .liquid-gauge-svg {
   width: min(116px, 100%);
@@ -3939,6 +4143,13 @@
   margin-top: 1px;
 }
 
+.liquid-gauge[data-shape="column"] {
+  background:
+    linear-gradient(90deg, transparent 0 22%, color-mix(in srgb, var(--liquid-color) 11%, transparent) 32% 68%, transparent 78% 100%),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--liquid-color) 9%, transparent) 0 1px, transparent 1px 12px),
+    color-mix(in srgb, var(--surface-elev) 80%, transparent);
+}
+
 .liquid-gauge[data-shape="column"] .liquid-gauge-value {
   margin-top: -48px;
 }
@@ -3953,6 +4164,13 @@
   margin-top: 7px;
 }
 
+.liquid-gauge[data-shape="lens"] {
+  background:
+    radial-gradient(ellipse at 50% 46%, color-mix(in srgb, var(--liquid-color) 16%, transparent) 0%, transparent 58%),
+    linear-gradient(110deg, color-mix(in srgb, white 8%, transparent), transparent 40%),
+    color-mix(in srgb, var(--surface-elev) 80%, transparent);
+}
+
 .liquid-gauge[data-shape="lens"] .liquid-gauge-value {
   margin-top: -42px;
 }
@@ -3964,9 +4182,9 @@
 .liquid-gauge[data-shape="crystal"] {
   border-radius: 13px;
   background:
-    linear-gradient(120deg, color-mix(in srgb, var(--liquid-color) 8%, transparent), transparent 42%),
-    radial-gradient(circle at 50% 10%, color-mix(in srgb, var(--liquid-color) 17%, transparent) 0%, transparent 64%),
-    color-mix(in srgb, var(--surface-elev) 76%, transparent);
+    conic-gradient(from 30deg at 50% 48%, color-mix(in srgb, var(--liquid-color) 12%, transparent), transparent 17%, color-mix(in srgb, white 7%, transparent) 31%, transparent 44%, color-mix(in srgb, var(--liquid-color) 14%, transparent), transparent 72%),
+    radial-gradient(circle at 50% 10%, color-mix(in srgb, var(--liquid-color) 22%, transparent) 0%, transparent 64%),
+    color-mix(in srgb, var(--surface-elev) 78%, transparent);
 }
 
 .liquid-gauge[data-shape="crystal"] .liquid-gauge-vessel,
@@ -4053,6 +4271,24 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@keyframes ys-liquid-card-scan {
+  0%,
+  18% {
+    opacity: 0;
+    transform: translateX(-86%);
+  }
+
+  42% {
+    opacity: var(--liquid-panel-opacity, 0.32);
+  }
+
+  72%,
+  100% {
+    opacity: 0;
+    transform: translateX(86%);
+  }
 }
 
 @keyframes ys-liquid-wave {
@@ -4143,6 +4379,17 @@
 
   50% {
     filter: brightness(1.32);
+  }
+}
+
+@keyframes ys-liquid-panel-breathe {
+  0%,
+  100% {
+    opacity: var(--liquid-panel-opacity, 0.32);
+  }
+
+  50% {
+    opacity: calc(var(--liquid-panel-opacity, 0.32) + 0.18);
   }
 }
 
@@ -4509,6 +4756,327 @@
   stroke: rgba(217, 255, 230, 0.5);
 }
 
+:root[data-gradient-surfaces="true"][data-card-style] .server-card {
+  border-color: color-mix(
+    in srgb,
+    var(--ys-gradient-surface-secondary) var(--ys-gradient-surface-border),
+    var(--border)
+  );
+  background:
+    radial-gradient(
+      circle at 8% -4%,
+      color-mix(
+        in srgb,
+        var(--ys-gradient-surface-accent) calc(var(--ys-gradient-surface-faint) + 6%),
+        transparent
+      ) 0%,
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 94% 4%,
+      color-mix(
+        in srgb,
+        var(--ys-gradient-surface-secondary) var(--ys-gradient-surface-faint),
+        transparent
+      ) 0%,
+      transparent 36%
+    ),
+    linear-gradient(
+      150deg,
+      color-mix(
+        in srgb,
+        var(--ys-gradient-surface-primary) var(--ys-gradient-surface-tint),
+        color-mix(in srgb, var(--surface) var(--ys-gradient-surface-glass), transparent)
+      ) 0%,
+      color-mix(
+        in srgb,
+        var(--ys-gradient-surface-secondary) var(--ys-gradient-surface-faint),
+        color-mix(in srgb, var(--surface) var(--ys-gradient-surface-glass), transparent)
+      ) 100%
+    );
+  box-shadow:
+    0 20px 48px -36px color-mix(in srgb, var(--ys-gradient-surface-secondary) 46%, black 54%),
+    inset 0 1px 0 color-mix(in srgb, white 22%, transparent);
+}
+
+:root[data-gradient-surfaces="true"][data-card-style] .server-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--ys-gradient-surface-accent) calc(var(--ys-gradient-surface-border) + 10%),
+    var(--border-strong)
+  );
+}
+
+:root[data-gradient-surfaces="true"][data-card-style] .server-card.is-offline {
+  background:
+    radial-gradient(
+      circle at 12% -4%,
+      color-mix(in srgb, var(--status-offline) 14%, transparent) 0%,
+      transparent 42%
+    ),
+    linear-gradient(
+      150deg,
+      color-mix(
+        in srgb,
+        var(--status-offline) 12%,
+        color-mix(
+          in srgb,
+          var(--ys-gradient-surface-primary) 28%,
+          color-mix(in srgb, var(--surface) var(--ys-gradient-surface-glass), transparent)
+        )
+      ) 0%,
+      color-mix(
+        in srgb,
+        var(--status-offline) 8%,
+        color-mix(
+          in srgb,
+          var(--ys-gradient-surface-secondary) 24%,
+          color-mix(in srgb, var(--surface) var(--ys-gradient-surface-glass), transparent)
+        )
+      ) 100%
+    );
+}
+
+:root[data-gradient-surfaces="true"]:not([data-card-style="crt"]) .server-card::before {
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--ys-gradient-surface-accent) 36%, white 16%),
+      transparent
+    );
+  opacity: 0.7;
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .server-card {
+  background:
+    radial-gradient(
+      circle at 10% -4%,
+      color-mix(in srgb, var(--ys-gradient-surface-accent) 28%, transparent) 0%,
+      transparent 46%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--ys-gradient-surface-primary) 30%, transparent) 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 18%, transparent) 100%
+    ),
+    color-mix(in srgb, var(--surface) 46%, transparent);
+  box-shadow:
+    0 26px 58px -42px color-mix(in srgb, var(--ys-gradient-surface-secondary) 52%, black 48%),
+    inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .server-card {
+  border-color: color-mix(in srgb, var(--ys-gradient-surface-secondary) 62%, #172033);
+  background:
+    radial-gradient(
+      circle at 8% -6%,
+      color-mix(in srgb, var(--ys-gradient-surface-accent) 34%, transparent) 0%,
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 94% 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 28%, transparent) 0%,
+      transparent 36%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--ys-gradient-surface-primary) 28%, #07111d 72%) 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 24%, #110d22 76%) 54%,
+      color-mix(in srgb, var(--ys-gradient-surface-accent) 18%, #070a12 82%) 100%
+    );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ys-gradient-surface-accent) 22%, transparent),
+    0 24px 54px -34px color-mix(in srgb, var(--ys-gradient-surface-secondary) 58%, black),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="soft"] .server-card {
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-accent) 20%, transparent) 0%,
+      transparent 36%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--ys-gradient-surface-primary) calc(var(--ys-gradient-surface-tint) + 6%), var(--surface)) 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) calc(var(--ys-gradient-surface-faint) + 4%), var(--surface)) 100%
+    );
+  box-shadow:
+    0 18px 44px -34px color-mix(in srgb, var(--ys-gradient-surface-secondary) 42%, black),
+    inset 0 1px 0 color-mix(in srgb, white 24%, transparent);
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="minimal"] .server-card {
+  border-color: color-mix(
+    in srgb,
+    var(--ys-gradient-surface-secondary) calc(var(--ys-gradient-surface-border) + 4%),
+    var(--hairline)
+  );
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ys-gradient-surface-primary) 12%, var(--surface)) 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 8%, var(--surface)) 100%
+    );
+  box-shadow: none;
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="minimal"] .server-card:hover {
+  box-shadow: none;
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .server-card {
+  border-color: color-mix(in srgb, var(--ys-gradient-surface-secondary) 46%, #12362a);
+  background:
+    radial-gradient(
+      ellipse at 50% -8%,
+      color-mix(in srgb, var(--ys-gradient-surface-accent) 28%, transparent) 0%,
+      transparent 56%
+    ),
+    radial-gradient(
+      ellipse at 50% 112%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 24%, transparent) 0%,
+      transparent 64%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ys-gradient-surface-primary) 20%, #06150f 80%) 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 16%, #020806 84%) 100%
+    );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ys-gradient-surface-accent) 12%, transparent),
+    0 22px 46px -32px color-mix(in srgb, var(--ys-gradient-surface-secondary) 52%, black),
+    inset 0 0 34px color-mix(in srgb, var(--ys-gradient-surface-accent) 12%, transparent),
+    inset 0 -22px 44px rgba(0, 0, 0, 0.36);
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .server-card::before {
+  background:
+    radial-gradient(ellipse at center, transparent 46%, rgba(0, 0, 0, 0.34) 100%),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ys-gradient-surface-accent) 9%, transparent),
+      transparent 18% 82%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 9%, transparent)
+    );
+}
+
+:root[data-gradient-surfaces="true"][data-card-style] .card-metric-section,
+:root[data-gradient-surfaces="true"][data-card-style] .metric-detail,
+:root[data-gradient-surfaces="true"][data-card-style] .server-card-detail-link,
+:root[data-gradient-surfaces="true"][data-card-style] .strip-card-stat,
+:root[data-gradient-surfaces="true"][data-card-style] .strip-card-metric-bar,
+:root[data-gradient-surfaces="true"][data-card-style] .radar-gauge,
+:root[data-gradient-surfaces="true"][data-card-style] .liquid-gauge,
+:root[data-gradient-surfaces="true"][data-card-style] .server-health-placeholder,
+:root[data-gradient-surfaces="true"][data-card-style] .server-health-tooltip,
+:root[data-gradient-surfaces="true"][data-card-style] .instance-chart-tooltip,
+:root[data-gradient-surfaces="true"][data-card-style] .dstatus-tag-more,
+:root[data-gradient-surfaces="true"][data-card-style] .dstatus-tag-add,
+:root[data-gradient-surfaces="true"][data-card-style] .dstatus-tag-chip {
+  border-color: color-mix(
+    in srgb,
+    var(--ys-gradient-surface-secondary) var(--ys-gradient-surface-border),
+    var(--border-subtle)
+  );
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(
+        in srgb,
+        var(--ys-gradient-surface-accent) var(--ys-gradient-surface-faint),
+        color-mix(in srgb, var(--surface-elev) var(--ys-gradient-surface-glass), transparent)
+      ) 0%,
+      color-mix(
+        in srgb,
+        var(--ys-gradient-surface-primary) var(--ys-gradient-surface-faint),
+        color-mix(in srgb, var(--surface-elev) var(--ys-gradient-surface-glass), transparent)
+      ) 100%
+    );
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .card-metric-section,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .metric-detail,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .server-card-detail-link,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .strip-card-stat,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .strip-card-metric-bar,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .radar-gauge,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .liquid-gauge,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .server-health-placeholder,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .dstatus-tag-more,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .dstatus-tag-chip {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ys-gradient-surface-accent) 18%, transparent) 0%,
+      color-mix(in srgb, var(--surface-elev) 38%, transparent) 100%
+    );
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .metric-detail,
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .server-card-detail-link,
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .strip-card-stat,
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .strip-card-metric-bar,
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .server-health-placeholder,
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .dstatus-tag-more,
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .dstatus-tag-chip {
+  border-color: color-mix(in srgb, var(--ys-gradient-surface-secondary) 36%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 16%, rgba(8, 16, 30, 0.72)) 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-primary) 12%, rgba(5, 10, 20, 0.7)) 100%
+    );
+  color: color-mix(in srgb, var(--ys-gradient-surface-accent) 24%, #b9d7e8);
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .card-metric-section,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .metric-detail,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .server-card-detail-link,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .strip-card-stat,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .strip-card-metric-bar,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .radar-gauge,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .liquid-gauge,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .server-health-placeholder,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .dstatus-tag-more,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .dstatus-tag-chip {
+  border-color: color-mix(in srgb, var(--ys-gradient-surface-secondary) 30%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ys-gradient-surface-primary) 18%, rgba(8, 31, 23, 0.84)) 0%,
+      color-mix(in srgb, var(--ys-gradient-surface-secondary) 14%, rgba(3, 13, 10, 0.74)) 100%
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ys-gradient-surface-accent) 8%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 18px color-mix(in srgb, var(--ys-gradient-surface-secondary) 12%, transparent);
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .server-card-title-link,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .strip-card-stat-value,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .traffic-stat-value,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .server-health-value,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .server-card-meta-value,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .radar-gauge-value,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .liquid-gauge-value {
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--ys-gradient-surface-secondary) 44%, transparent),
+    -0.7px 0 color-mix(in srgb, var(--ys-gradient-surface-accent) 24%, transparent),
+    0.7px 0 color-mix(in srgb, var(--ys-gradient-surface-primary) 22%, transparent);
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .liquid-gauge-vessel {
+  fill: color-mix(in srgb, var(--ys-gradient-surface-primary) 14%, rgba(4, 17, 13, 0.56));
+  stroke: color-mix(in srgb, var(--liquid-color) 42%, var(--ys-gradient-surface-secondary));
+}
+
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .liquid-gauge-glass {
+  stroke: color-mix(in srgb, var(--ys-gradient-surface-accent) 42%, rgba(217, 255, 230, 0.5));
+}
+
 @keyframes ys-crt-scan {
   0% {
     background-position: 0 0, 0 0;
@@ -4520,14 +5088,22 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .liquid-gauge::after,
   .liquid-gauge-wave,
   .liquid-gauge-bubble,
+  .liquid-tech-halo,
+  .liquid-tech-panel,
   .liquid-tech-sweep,
   .liquid-tech-node,
   .liquid-tech-packet,
   .liquid-tech-cell,
   .liquid-tech-core,
+  .liquid-tech-prism,
   .liquid-tech-spark,
+  .liquid-tech-signal,
+  .liquid-tech-lane,
+  .liquid-tech-ladder,
+  .liquid-tech-brace,
   .liquid-gauge-tech .liquid-tech-orbit,
   .liquid-gauge-tech .liquid-tech-rail,
   .liquid-gauge-tech .liquid-tech-spine,

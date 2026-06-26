@@ -510,6 +510,8 @@ function liquidDashboardStyle(settings: LiquidDashboardSettings) {
     "--liquid-shine-opacity": scalePercentLegacy(settings.glass, 0.08, 0.28).toFixed(3),
     "--liquid-segment-opacity": scalePercentLegacy(settings.glass, 0.18, 0.56).toFixed(3),
     "--liquid-texture-opacity": scalePercentLegacy(settings.texture, 0, 0.48).toFixed(3),
+    "--liquid-hud-opacity": scalePercentLegacy(settings.texture, 0.18, 0.78).toFixed(3),
+    "--liquid-panel-opacity": scalePercentLegacy(settings.glass, 0.18, 0.52).toFixed(3),
   } as CSSProperties;
 }
 
@@ -1317,11 +1319,17 @@ function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
   if (shape === "sphere") {
     return (
       <g className="liquid-gauge-tech is-sphere">
-        <ellipse className="liquid-tech-orbit is-a" cx="50" cy="50" rx="46" ry="16" />
+        <circle className="liquid-tech-halo is-outer" cx="50" cy="50" r="43" pathLength={100} />
+        <circle className="liquid-tech-halo is-inner" cx="50" cy="50" r="30" pathLength={100} />
+        <ellipse className="liquid-tech-orbit is-a" cx="50" cy="50" rx="46" ry="15" />
         <ellipse className="liquid-tech-orbit is-b" cx="50" cy="50" rx="18" ry="43" />
+        <ellipse className="liquid-tech-orbit is-c" cx="50" cy="50" rx="36" ry="10" transform="rotate(-28 50 50)" />
         <path className="liquid-tech-sweep" d="M50 50 L50 12 A38 38 0 0 1 86 50 Z" />
+        <path className="liquid-tech-reticle" d="M21 50 H34 M66 50 H79 M50 21 V34 M50 66 V79" />
+        <path className="liquid-tech-signal" d="M25 58 C36 48 43 63 54 53 S72 43 80 52" />
         <circle className="liquid-tech-node is-one" cx="84" cy="50" r="2.5" />
         <circle className="liquid-tech-node is-two" cx="24" cy="34" r="1.8" />
+        <circle className="liquid-tech-node is-three" cx="64" cy="22" r="1.6" />
       </g>
     );
   }
@@ -1329,11 +1337,15 @@ function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
   if (shape === "capsule") {
     return (
       <g className="liquid-gauge-tech is-capsule">
+        <path className="liquid-tech-panel" d="M24 31 H76 A19 19 0 0 1 76 69 H24 A19 19 0 0 1 24 31 Z" />
         <line className="liquid-tech-rail" x1="16" y1="29" x2="84" y2="29" />
         <line className="liquid-tech-rail is-bottom" x1="16" y1="71" x2="84" y2="71" />
+        <line className="liquid-tech-lane" x1="20" y1="50" x2="80" y2="50" />
         <circle className="liquid-tech-packet is-one" cx="24" cy="29" r="2.4" />
         <circle className="liquid-tech-packet is-two" cx="64" cy="71" r="2" />
+        <circle className="liquid-tech-packet is-three" cx="38" cy="50" r="1.7" />
         <path className="liquid-tech-signal" d="M19 50 H31 L38 42 L48 58 L57 47 L66 50 H81" />
+        <path className="liquid-tech-brace" d="M13 43 L20 36 M13 57 L20 64 M87 43 L80 36 M87 57 L80 64" />
       </g>
     );
   }
@@ -1341,6 +1353,7 @@ function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
   if (shape === "column") {
     return (
       <g className="liquid-gauge-tech is-column">
+        <rect className="liquid-tech-panel" x="34" y="15" width="32" height="70" rx="10" />
         {[20, 32, 44, 56, 68, 80].map((y) => (
           <line key={y} className="liquid-tech-tick" x1="22" y1={y} x2="29" y2={y} />
         ))}
@@ -1348,7 +1361,10 @@ function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
           <line key={y} className="liquid-tech-tick is-right" x1="71" y1={y} x2="78" y2={y} />
         ))}
         <line className="liquid-tech-spine" x1="50" y1="17" x2="50" y2="84" />
+        <path className="liquid-tech-ladder" d="M38 25 H62 M38 37 H62 M38 49 H62 M38 61 H62 M38 73 H62" />
         <circle className="liquid-tech-packet is-one" cx="50" cy="76" r="2.4" />
+        <circle className="liquid-tech-packet is-two" cx="62" cy="38" r="1.7" />
+        <path className="liquid-tech-signal" d="M35 17 H65 M35 84 H65" />
       </g>
     );
   }
@@ -1356,9 +1372,14 @@ function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
   if (shape === "lens") {
     return (
       <g className="liquid-gauge-tech is-lens">
+        <ellipse className="liquid-tech-panel" cx="50" cy="50" rx="39" ry="25" />
         <path className="liquid-tech-grid" d="M14 50 H86 M24 35 H76 M24 65 H76 M50 23 V77 M36 29 C42 43 42 57 36 71 M64 29 C58 43 58 57 64 71" />
         <circle className="liquid-tech-reticle" cx="50" cy="50" r="17" />
+        <circle className="liquid-tech-reticle is-outer" cx="50" cy="50" r="25" />
         <path className="liquid-tech-sweep" d="M50 50 L50 23 A27 27 0 0 1 76 50 Z" />
+        <path className="liquid-tech-signal" d="M19 43 C31 35 42 37 50 50 S69 65 82 56" />
+        <circle className="liquid-tech-node is-one" cx="28" cy="35" r="1.8" />
+        <circle className="liquid-tech-node is-two" cx="72" cy="65" r="1.8" />
       </g>
     );
   }
@@ -1367,10 +1388,11 @@ function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
     const activeSegments = Math.max(1, Math.ceil((percent / 100) * 6));
     return (
       <g className="liquid-gauge-tech is-segmented">
+        <path className="liquid-tech-panel" d="M18 31 H82 A19 19 0 0 1 82 69 H18 A19 19 0 0 1 18 31 Z" />
         {[0, 1, 2, 3, 4, 5].map((index) => (
           <rect
             key={index}
-            className="liquid-tech-cell"
+            className={clsx("liquid-tech-cell", index < activeSegments && "is-active")}
             x={16 + index * 11}
             y="33"
             width="7"
@@ -1379,8 +1401,11 @@ function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
             style={{ opacity: index < activeSegments ? 0.76 : 0.18 }}
           />
         ))}
-        <line className="liquid-tech-rail" x1="16" y1="50" x2="84" y2="50" />
+        <line className="liquid-tech-rail" x1="15" y1="29" x2="85" y2="29" />
+        <line className="liquid-tech-rail is-bottom" x1="15" y1="71" x2="85" y2="71" />
+        <line className="liquid-tech-lane" x1="17" y1="50" x2="83" y2="50" />
         <circle className="liquid-tech-packet is-one" cx="18" cy="50" r="2" />
+        <circle className="liquid-tech-packet is-two" cx="72" cy="50" r="1.6" />
       </g>
     );
   }
@@ -1388,10 +1413,15 @@ function renderLiquidTechArt(shape: LiquidShapeId, percent: number) {
   if (shape === "crystal") {
     return (
       <g className="liquid-gauge-tech is-crystal">
+        <polygon className="liquid-tech-panel" points="50,12 77,28 77,68 50,88 23,68 23,28" />
         <path className="liquid-tech-facet" d="M50 8 L50 92 M18 26 L82 70 M82 26 L18 70 M31 19 L69 81 M69 19 L31 81" />
+        <path className="liquid-tech-grid" d="M32 28 H68 M25 49 H75 M32 70 H68" />
         <polygon className="liquid-tech-core" points="50,24 67,36 64,62 50,75 36,62 33,36" />
+        <polygon className="liquid-tech-prism" points="50,34 60,42 58,57 50,65 42,57 40,42" />
+        <path className="liquid-tech-sweep" d="M50 50 L50 16 L75 30 Z" />
         <circle className="liquid-tech-node is-one" cx="50" cy="8" r="2" />
         <circle className="liquid-tech-node is-two" cx="82" cy="70" r="1.8" />
+        <circle className="liquid-tech-node is-three" cx="18" cy="26" r="1.6" />
       </g>
     );
   }
@@ -1498,6 +1528,8 @@ function LiquidGauge({
           "--liquid-cell-ms": `${Math.round(motionMs * 1.14)}ms`,
           "--liquid-drop-orbit-ms": `${Math.round(motionMs * 1.42)}ms`,
           "--liquid-ring-node-ms": `${Math.round(motionMs * 1.4)}ms`,
+          "--liquid-drift-ms": `${Math.round(motionMs * 1.72)}ms`,
+          "--liquid-scan-ms": `${Math.round(motionMs * 1.06)}ms`,
         } as CSSProperties
       }
       title={title}
