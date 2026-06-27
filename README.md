@@ -24,6 +24,7 @@ komari-theme-YS 是一个面向 [Komari](https://github.com/komari-monitor/komar
 ## 特性
 
 - 首页为节点卡片与 Ping 任务视图做过一轮数据结构和渲染优化，优先保证大量节点下的流畅度。
+- 方型卡片的信息展板“数据条”会在上下行流量区域显示流量额度，可按 Komari 的 `traffic_limit_type` 展示已用 / 总量和百分比进度。
 - 首页顶部提供总览条，可快速查看当前时间、节点总数、在线数量、点亮地区、总上下行流量和总流量速率。
 - WebSocket 刷新策略参考官方主题，尽量兼顾实时性与稳定性。
 - 详情页整合了 Mochi 与 PurCarte 的一些优点，偏向高信息密度的状态展示。

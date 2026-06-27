@@ -147,6 +147,12 @@ export const NodeCard = memo(function NodeCard({
   const loadFraction = Math.max(0, Math.min(1, node.load1 / loadBaseline));
   const upRate = formatTrafficRate(node.netUp);
   const downRate = formatTrafficRate(node.netDown);
+  const trafficQuota = getTrafficQuotaSummary({
+    up: node.trafficUp,
+    down: node.trafficDown,
+    limit: node.traffic_limit,
+    type: node.traffic_limit_type,
+  });
   const lossHoverColor = hoveredLossBucket ? lossTone : null;
   const hasHomepagePingBinding = ping.isAssigned;
   const isOnline = node.online === true;
@@ -516,6 +522,7 @@ export const NodeCard = memo(function NodeCard({
                 marqueeStyle={marqueeStyle}
                 icon={<ArrowDown size={15} strokeWidth={2.4} />}
               />
+              {trafficQuota && <TrafficQuotaBar summary={trafficQuota} />}
             </div>
 
             <div className="card-metric-section card-metric-divided server-health-grid">
@@ -1567,6 +1574,100 @@ function RadarGauge({
       </div>
       <div className="radar-gauge-foot">
         <span>{realValue}</span>
+      </div>
+    </div>
+  );
+}
+
+type TrafficQuotaSummary = {
+  label: string;
+  mode: string;
+  usedText: string;
+  limitText: string;
+  percent: number;
+  tone: "ok" | "warn" | "critical";
+  title: string;
+};
+
+function getTrafficQuotaSummary({
+  up,
+  down,
+  limit,
+  type,
+}: {
+  up: number;
+  down: number;
+  limit: number;
+  type: string;
+}): TrafficQuotaSummary | null {
+  const safeLimit = Number.isFinite(limit) ? Math.max(0, limit) : 0;
+  if (safeLimit <= 0) return null;
+
+  const safeUp = Number.isFinite(up) ? Math.max(0, up) : 0;
+  const safeDown = Number.isFinite(down) ? Math.max(0, down) : 0;
+  const normalizedType = type.trim().toLowerCase();
+  let used = safeUp + safeDown;
+  let label = "合计额度";
+  let mode = "按出站 + 入站统计";
+
+  if (normalizedType === "up") {
+    used = safeUp;
+    label = "出站额度";
+    mode = "按出站统计";
+  } else if (normalizedType === "down") {
+    used = safeDown;
+    label = "入站额度";
+    mode = "按入站统计";
+  } else if (normalizedType === "max") {
+    used = Math.max(safeUp, safeDown);
+    label = "较高方向额度";
+    mode = "按较高方向统计";
+  } else if (normalizedType === "min") {
+    used = Math.min(safeUp, safeDown);
+    label = "较低方向额度";
+    mode = "按较低方向统计";
+  }
+
+  const fraction = clampFraction(used / safeLimit);
+  const percent = Math.round(fraction * 100);
+  const tone = percent >= 90 ? "critical" : percent >= 75 ? "warn" : "ok";
+  const usedText = formatBytes(used);
+  const limitText = formatBytes(safeLimit);
+
+  return {
+    label,
+    mode,
+    usedText,
+    limitText,
+    percent,
+    tone,
+    title: `${label} · ${mode} · ${usedText} / ${limitText}`,
+  };
+}
+
+function TrafficQuotaBar({ summary }: { summary: TrafficQuotaSummary }) {
+  return (
+    <div
+      className="traffic-quota"
+      data-tone={summary.tone}
+      style={{ "--traffic-quota-percent": `${summary.percent}%` } as CSSProperties}
+      title={summary.title}
+    >
+      <div className="traffic-quota-head">
+        <span className="traffic-quota-label">
+          <Globe size={13} strokeWidth={2} />
+          <span>{summary.label}</span>
+        </span>
+        <span className="traffic-quota-mode">已用 / 总量 · {summary.mode}</span>
+      </div>
+      <div className="traffic-quota-value tabular">
+        <span>{summary.usedText}</span>
+        <span className="traffic-quota-separator">/</span>
+        <span>{summary.limitText}</span>
+        <strong>{summary.percent}%</strong>
+      </div>
+      <div className="traffic-quota-track" aria-hidden>
+        <span className="traffic-quota-fill" />
       </div>
     </div>
   );
