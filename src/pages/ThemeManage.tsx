@@ -18,6 +18,8 @@ import {
   ChevronsDown,
   ChevronsUp,
   Cpu,
+  Eye,
+  EyeOff,
   GripVertical,
   Grid2X2,
   Image as ImageIcon,
@@ -1119,6 +1121,38 @@ export function ThemeManage() {
               )}
               {draftVisualStyle.dashboardStyle === "bars" && (
                 <div className="mt-4 border-t border-[var(--hairline)] pt-4">
+                  <div className="gradient-surface-sync mb-4">
+                    <div>
+                      <div className="gradient-surface-title">流量统计</div>
+                      <div className="gradient-surface-subtitle">
+                        在数据条卡片中显示已用 / 总量
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="instance-toggle-button instance-switch-button gradient-panel-switch"
+                      data-active={draftVisualStyle.showTrafficQuota ? "true" : "false"}
+                      onClick={() =>
+                        updateDraftVisualStyle({
+                          showTrafficQuota: !draftVisualStyle.showTrafficQuota,
+                        })
+                      }
+                      aria-pressed={draftVisualStyle.showTrafficQuota}
+                    >
+                      <span className="instance-switch-track" aria-hidden>
+                        <span className="instance-switch-thumb" />
+                      </span>
+                      {draftVisualStyle.showTrafficQuota ? (
+                        <Eye size={13} />
+                      ) : (
+                        <EyeOff size={13} />
+                      )}
+                      <span className="instance-switch-state">
+                        {draftVisualStyle.showTrafficQuota ? "显示" : "关闭"}
+                      </span>
+                    </button>
+                  </div>
+
                   <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
                     <Sparkles size={14} />
                     <span>数据条细节</span>

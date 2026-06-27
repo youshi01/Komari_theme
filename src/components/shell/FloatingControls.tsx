@@ -5,6 +5,8 @@ import {
   Cpu,
   ChevronLeft,
   ChevronRight,
+  Eye,
+  EyeOff,
   Grid2X2,
   ImageOff,
   Layers,
@@ -659,6 +661,38 @@ export function FloatingControls() {
                   <div className="visual-style-linked-settings">
                     {visualStyle.dashboardStyle === "bars" ? (
                       <>
+                        <div className="gradient-surface-sync">
+                          <div>
+                            <div className="gradient-surface-title">流量统计</div>
+                            <div className="gradient-surface-subtitle">
+                              在数据条卡片中显示已用 / 总量
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="instance-toggle-button instance-switch-button gradient-panel-switch"
+                            data-active={visualStyle.showTrafficQuota ? "true" : "false"}
+                            onClick={() =>
+                              updateVisualStyle({
+                                showTrafficQuota: !visualStyle.showTrafficQuota,
+                              })
+                            }
+                            aria-pressed={visualStyle.showTrafficQuota}
+                          >
+                            <span className="instance-switch-track" aria-hidden>
+                              <span className="instance-switch-thumb" />
+                            </span>
+                            {visualStyle.showTrafficQuota ? (
+                              <Eye size={13} />
+                            ) : (
+                              <EyeOff size={13} />
+                            )}
+                            <span className="instance-switch-state">
+                              {visualStyle.showTrafficQuota ? "显示" : "关闭"}
+                            </span>
+                          </button>
+                        </div>
+
                         <div className="visual-style-section-title">数据条细节</div>
                         <div className="visual-style-preset-list">
                           {MARQUEE_STYLE_PRESETS.map((preset) => (

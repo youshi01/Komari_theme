@@ -85,6 +85,7 @@ export const NodeCard = memo(function NodeCard({
   cardLayout,
   visualRedrawKey,
   dashboardStyle,
+  showTrafficQuota,
   dashboardSettings,
   radarLatencyMaxMs,
   marqueeStyle,
@@ -93,6 +94,7 @@ export const NodeCard = memo(function NodeCard({
   cardLayout: CardLayoutId;
   visualRedrawKey: string;
   dashboardStyle: DashboardStylePresetId;
+  showTrafficQuota: boolean;
   dashboardSettings: DashboardSettings;
   radarLatencyMaxMs: number;
   marqueeStyle: MarqueeStyleSettings;
@@ -522,7 +524,13 @@ export const NodeCard = memo(function NodeCard({
                 marqueeStyle={marqueeStyle}
                 icon={<ArrowDown size={15} strokeWidth={2.4} />}
               />
-              {trafficQuota && <TrafficQuotaBar summary={trafficQuota} />}
+              {showTrafficQuota && trafficQuota && (
+                <TrafficQuotaBar
+                  summary={trafficQuota}
+                  marqueeStyle={marqueeStyle}
+                  redrawKey={metricRedrawKey}
+                />
+              )}
             </div>
 
             <div className="card-metric-section card-metric-divided server-health-grid">
@@ -1581,9 +1589,9 @@ function RadarGauge({
 
 type TrafficQuotaSummary = {
   label: string;
-  mode: string;
   usedText: string;
   limitText: string;
+  fraction: number;
   percent: number;
   tone: "ok" | "warn" | "critical";
   title: string;
@@ -1601,75 +1609,91 @@ function getTrafficQuotaSummary({
   type: string;
 }): TrafficQuotaSummary | null {
   const safeLimit = Number.isFinite(limit) ? Math.max(0, limit) : 0;
-  if (safeLimit <= 0) return null;
-
   const safeUp = Number.isFinite(up) ? Math.max(0, up) : 0;
   const safeDown = Number.isFinite(down) ? Math.max(0, down) : 0;
   const normalizedType = type.trim().toLowerCase();
   let used = safeUp + safeDown;
   let label = "合计额度";
-  let mode = "按出站 + 入站统计";
 
   if (normalizedType === "up") {
     used = safeUp;
     label = "出站额度";
-    mode = "按出站统计";
   } else if (normalizedType === "down") {
     used = safeDown;
     label = "入站额度";
-    mode = "按入站统计";
   } else if (normalizedType === "max") {
     used = Math.max(safeUp, safeDown);
     label = "较高方向额度";
-    mode = "按较高方向统计";
   } else if (normalizedType === "min") {
     used = Math.min(safeUp, safeDown);
     label = "较低方向额度";
-    mode = "按较低方向统计";
   }
 
+  if (safeLimit <= 0) {
+    const unlimitedUsed = safeUp + safeDown;
+    const unlimitedLabel = "合计额度";
+    const unlimitedUsedText = formatBytes(unlimitedUsed);
+    return {
+      label: unlimitedLabel,
+      usedText: unlimitedUsedText,
+      limitText: "∞",
+      fraction: 1,
+      percent: 100,
+      tone: "ok",
+      title: `${unlimitedLabel} · ${unlimitedUsedText} / ∞`,
+    };
+  }
+
+  const usedText = formatBytes(used);
   const fraction = clampFraction(used / safeLimit);
   const percent = Math.round(fraction * 100);
   const tone = percent >= 90 ? "critical" : percent >= 75 ? "warn" : "ok";
-  const usedText = formatBytes(used);
   const limitText = formatBytes(safeLimit);
 
   return {
     label,
-    mode,
     usedText,
     limitText,
+    fraction,
     percent,
     tone,
-    title: `${label} · ${mode} · ${usedText} / ${limitText}`,
+    title: `${label} · ${usedText} / ${limitText}`,
   };
 }
 
-function TrafficQuotaBar({ summary }: { summary: TrafficQuotaSummary }) {
+function TrafficQuotaBar({
+  summary,
+  marqueeStyle,
+  redrawKey,
+}: {
+  summary: TrafficQuotaSummary;
+  marqueeStyle: MarqueeStyleSettings;
+  redrawKey: string;
+}) {
+  const color =
+    summary.tone === "critical"
+      ? "var(--status-offline)"
+      : summary.tone === "warn"
+        ? "var(--status-warning)"
+        : "var(--ys-marquee-peak, var(--status-success))";
+  const visualFraction =
+    marqueeStyle.shape === "equalizer" && summary.percent >= 100 ? 0.99 : undefined;
+
   return (
-    <div
-      className="traffic-quota"
-      data-tone={summary.tone}
-      style={{ "--traffic-quota-percent": `${summary.percent}%` } as CSSProperties}
+    <MetricBar
+      className="traffic-quota-metric"
       title={summary.title}
-    >
-      <div className="traffic-quota-head">
-        <span className="traffic-quota-label">
-          <Globe size={13} strokeWidth={2} />
-          <span>{summary.label}</span>
-        </span>
-        <span className="traffic-quota-mode">已用 / 总量 · {summary.mode}</span>
-      </div>
-      <div className="traffic-quota-value tabular">
-        <span>{summary.usedText}</span>
-        <span className="traffic-quota-separator">/</span>
-        <span>{summary.limitText}</span>
-        <strong>{summary.percent}%</strong>
-      </div>
-      <div className="traffic-quota-track" aria-hidden>
-        <span className="traffic-quota-fill" />
-      </div>
-    </div>
+      icon={<Globe size={13} strokeWidth={2} />}
+      label={summary.label}
+      valueText={String(summary.percent)}
+      unit="%"
+      detailText={`${summary.usedText} / ${summary.limitText}`}
+      fraction={summary.fraction}
+      visualFraction={visualFraction}
+      redrawKey={`${redrawKey}:traffic-quota:${summary.percent}:${summary.tone}`}
+      paint={{ kind: "solid", color }}
+      marqueeStyle={marqueeStyle}
+    />
   );
 }
 

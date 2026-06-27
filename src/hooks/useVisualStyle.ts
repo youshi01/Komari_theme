@@ -130,6 +130,7 @@ export interface VisualStyleSettings {
   cardStyle: CardStylePresetId;
   cardLayout: CardLayoutId;
   dashboardStyle: DashboardStylePresetId;
+  showTrafficQuota: boolean;
   dashboardSettings: DashboardSettings;
   radarLatencyMaxMs: number;
   marqueePalette: MarqueePalettePresetId;
@@ -755,6 +756,7 @@ export const DEFAULT_VISUAL_STYLE_SETTINGS: VisualStyleSettings = {
   cardStyle: "panel",
   cardLayout: "square",
   dashboardStyle: "bars",
+  showTrafficQuota: true,
   dashboardSettings: DEFAULT_DASHBOARD_SETTINGS,
   radarLatencyMaxMs: 1000,
   marqueePalette: "health",
@@ -1049,6 +1051,10 @@ export function normalizeVisualStyleSettings(value: unknown): VisualStyleSetting
       : legacyRadarCardStyle
         ? "arc"
         : DEFAULT_VISUAL_STYLE_SETTINGS.dashboardStyle,
+    showTrafficQuota:
+      typeof record.showTrafficQuota === "boolean"
+        ? record.showTrafficQuota
+        : DEFAULT_VISUAL_STYLE_SETTINGS.showTrafficQuota,
     dashboardSettings: normalizeDashboardSettings(record.dashboardSettings),
     radarLatencyMaxMs: normalizeRadarLatencyMaxMs(record.radarLatencyMaxMs),
     marqueePalette,

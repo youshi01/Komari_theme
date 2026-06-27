@@ -126,6 +126,7 @@ export function NodeGrid() {
               cardLayout={visualStyle.cardLayout}
               visualRedrawKey={visualRedrawKey}
               dashboardStyle={visualStyle.dashboardStyle}
+              showTrafficQuota={visualStyle.showTrafficQuota}
               dashboardSettings={visualStyle.dashboardSettings}
               radarLatencyMaxMs={visualStyle.radarLatencyMaxMs}
               marqueeStyle={visualStyle.marqueeStyle}

@@ -480,6 +480,8 @@
 
 :root[data-gradient-surfaces="true"] .server-card-detail-link,
 :root[data-gradient-surfaces="true"] .metric-detail,
+:root[data-gradient-surfaces="true"] .traffic-stat-foot,
+:root[data-gradient-surfaces="true"] .traffic-quota-mode,
 :root[data-gradient-surfaces="true"] .radar-gauge,
 :root[data-gradient-surfaces="true"] .traffic-quota,
 :root[data-gradient-surfaces="true"] .server-health-placeholder,
@@ -627,13 +629,17 @@
 .server-traffic-section {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 16px 18px;
+}
+
+.traffic-quota-metric {
+  grid-column: 1 / -1;
 }
 
 .traffic-stat {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -662,9 +668,10 @@
 
 .traffic-stat-value {
   flex: 0 0 auto;
-  font-size: 20px;
-  font-weight: 640;
-  letter-spacing: -0.03em;
+  font-size: 18px;
+  font-weight: 680;
+  letter-spacing: 0;
+  line-height: 1.05;
 }
 
 .traffic-stat-trend {
@@ -697,12 +704,12 @@
 .traffic-stat-live {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex: 0 0 auto;
   color: var(--text-tertiary);
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 650;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -750,8 +757,17 @@
 }
 
 .traffic-stat-foot {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 18px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-elev) 42%, transparent);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .traffic-stat-total-label {
@@ -761,114 +777,12 @@
   min-width: 0;
 }
 
-.traffic-quota {
-  --traffic-quota-color: var(--ys-marquee-peak, var(--status-success));
-  grid-column: 1 / -1;
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-  margin-top: -4px;
-  padding: 10px 11px;
-  border: 1px solid color-mix(in srgb, var(--traffic-quota-color) 16%, var(--border-subtle));
-  border-radius: 12px;
-  background:
-    radial-gradient(
-      circle at 8% 0%,
-      color-mix(in srgb, var(--traffic-quota-color) 7%, transparent) 0%,
-      transparent 38%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-elev) 54%, transparent) 0%,
-      color-mix(in srgb, var(--surface-elev) 42%, transparent) 100%
-    );
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
-}
-
-.traffic-quota[data-tone="warn"] {
-  --traffic-quota-color: var(--status-warning);
-}
-
-.traffic-quota[data-tone="critical"] {
-  --traffic-quota-color: var(--status-offline);
-}
-
-.traffic-quota-head,
-.traffic-quota-value {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.traffic-quota-label {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
-  color: color-mix(in srgb, var(--traffic-quota-color) 78%, var(--text-secondary));
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.traffic-quota-label span,
-.traffic-quota-mode {
+.traffic-stat-total-label span,
+.traffic-stat-foot > .tabular {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.traffic-quota-mode {
-  color: var(--text-tertiary);
-  font-size: 10px;
-  font-weight: 650;
-}
-
-.traffic-quota-value {
-  justify-content: flex-start;
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 720;
-  line-height: 1.1;
-}
-
-.traffic-quota-separator {
-  color: var(--text-tertiary);
-  font-weight: 600;
-}
-
-.traffic-quota-value strong {
-  margin-left: auto;
-  color: var(--traffic-quota-color);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.traffic-quota-track {
-  position: relative;
-  height: 7px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--progress-bg) 84%, transparent);
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.18);
-}
-
-.traffic-quota-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--traffic-quota-percent);
-  max-width: 100%;
-  border-radius: inherit;
-  background:
-    linear-gradient(
-      90deg,
-      var(--traffic-quota-color),
-      color-mix(in srgb, var(--traffic-quota-color) 58%, white)
-    );
-  box-shadow: 0 0 14px -5px var(--traffic-quota-color);
-  transition: width 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .server-health-grid {
@@ -2557,6 +2471,8 @@
 
 :root[data-card-style="glass"] .card-metric-section,
 :root[data-card-style="glass"] .metric-detail,
+:root[data-card-style="glass"] .traffic-stat-foot,
+:root[data-card-style="glass"] .traffic-quota-mode,
 :root[data-card-style="glass"] .strip-card-stat,
 :root[data-card-style="glass"] .strip-card-metric-bar,
 :root[data-card-style="glass"] .radar-gauge,
@@ -2565,11 +2481,6 @@
 :root[data-card-style="glass"] .server-health-placeholder,
 :root[data-card-style="glass"] .dstatus-tag-more {
   background: color-mix(in srgb, var(--surface-elev) 48%, transparent);
-}
-
-:root[data-card-style="glass"] .traffic-quota {
-  border-color: color-mix(in srgb, white 28%, var(--border-subtle));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
 }
 
 :root[data-card-style="glass"] .liquid-gauge {
@@ -2633,6 +2544,8 @@
 }
 
 :root[data-card-style="neon"] .metric-detail,
+:root[data-card-style="neon"] .traffic-stat-foot,
+:root[data-card-style="neon"] .traffic-quota-mode,
 :root[data-card-style="neon"] .server-card-detail-link,
 :root[data-card-style="neon"] .strip-card-stat,
 :root[data-card-style="neon"] .strip-card-metric-bar,
@@ -2643,13 +2556,6 @@
   border-color: color-mix(in srgb, var(--ys-marquee-down, #06b6d4) 28%, transparent);
   background: rgba(8, 16, 30, 0.68);
   color: #b9d7e8;
-}
-
-:root[data-card-style="neon"] .traffic-quota-track {
-  background: rgba(3, 9, 18, 0.78);
-  box-shadow:
-    inset 0 1px 1px rgba(0, 0, 0, 0.36),
-    0 0 0 1px color-mix(in srgb, var(--ys-marquee-down, #06b6d4) 12%, transparent);
 }
 
 :root[data-card-style="neon"] .liquid-gauge {
@@ -2682,6 +2588,8 @@
 }
 
 :root[data-card-style="soft"] .metric-detail,
+:root[data-card-style="soft"] .traffic-stat-foot,
+:root[data-card-style="soft"] .traffic-quota-mode,
 :root[data-card-style="soft"] .server-card-detail-link,
 :root[data-card-style="soft"] .strip-card-stat,
 :root[data-card-style="soft"] .strip-card-metric-bar,
@@ -2691,10 +2599,6 @@
 :root[data-card-style="soft"] .server-health-placeholder,
 :root[data-card-style="soft"] .dstatus-tag-more {
   background: color-mix(in srgb, var(--ys-marquee-up, var(--status-online)) 9%, var(--surface-elev));
-}
-
-:root[data-card-style="soft"] .traffic-quota {
-  border-color: color-mix(in srgb, var(--ys-marquee-up, var(--status-online)) 18%, var(--border-subtle));
 }
 
 :root[data-card-style="soft"] .liquid-gauge {
@@ -2728,6 +2632,8 @@
 }
 
 :root[data-card-style="minimal"] .metric-detail,
+:root[data-card-style="minimal"] .traffic-stat-foot,
+:root[data-card-style="minimal"] .traffic-quota-mode,
 :root[data-card-style="minimal"] .server-card-detail-link,
 :root[data-card-style="minimal"] .strip-card-stat,
 :root[data-card-style="minimal"] .strip-card-metric-bar,
@@ -2738,11 +2644,6 @@
 :root[data-card-style="minimal"] .dstatus-tag-more {
   border-radius: 6px;
   box-shadow: none;
-}
-
-:root[data-card-style="minimal"] .traffic-quota {
-  border-color: var(--hairline);
-  background: color-mix(in srgb, var(--surface-elev) 32%, transparent);
 }
 
 :root[data-card-style="minimal"] .liquid-gauge::before,
@@ -2835,6 +2736,8 @@
 
 :root[data-card-style="crt"] .card-metric-section,
 :root[data-card-style="crt"] .metric-detail,
+:root[data-card-style="crt"] .traffic-stat-foot,
+:root[data-card-style="crt"] .traffic-quota-mode,
 :root[data-card-style="crt"] .server-card-detail-link,
 :root[data-card-style="crt"] .strip-card-stat,
 :root[data-card-style="crt"] .strip-card-metric-bar,
@@ -3103,6 +3006,8 @@
 
 :root[data-gradient-surfaces="true"][data-card-style] .card-metric-section,
 :root[data-gradient-surfaces="true"][data-card-style] .metric-detail,
+:root[data-gradient-surfaces="true"][data-card-style] .traffic-stat-foot,
+:root[data-gradient-surfaces="true"][data-card-style] .traffic-quota-mode,
 :root[data-gradient-surfaces="true"][data-card-style] .server-card-detail-link,
 :root[data-gradient-surfaces="true"][data-card-style] .strip-card-stat,
 :root[data-gradient-surfaces="true"][data-card-style] .strip-card-metric-bar,
@@ -3136,28 +3041,10 @@
     );
 }
 
-:root[data-gradient-surfaces="true"] .traffic-quota-track {
-  background: color-mix(
-    in srgb,
-    var(--ys-gradient-surface-primary) var(--ys-gradient-surface-faint),
-    color-mix(in srgb, var(--progress-bg) 82%, transparent)
-  );
-  box-shadow:
-    inset 0 1px 1px rgba(0, 0, 0, 0.16),
-    0 0 0 1px color-mix(in srgb, var(--ys-gradient-surface-secondary) 10%, transparent);
-}
-
-:root[data-gradient-surfaces="true"] .traffic-quota-label {
-  color: color-mix(in srgb, var(--traffic-quota-color) 64%, var(--ys-gradient-surface-accent));
-}
-
-:root[data-gradient-surfaces="true"] .traffic-quota-mode,
-:root[data-gradient-surfaces="true"] .traffic-quota-separator {
-  color: color-mix(in srgb, var(--ys-gradient-surface-secondary) 32%, var(--text-tertiary));
-}
-
 :root[data-gradient-surfaces="true"][data-card-style="glass"] .card-metric-section,
 :root[data-gradient-surfaces="true"][data-card-style="glass"] .metric-detail,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .traffic-stat-foot,
+:root[data-gradient-surfaces="true"][data-card-style="glass"] .traffic-quota-mode,
 :root[data-gradient-surfaces="true"][data-card-style="glass"] .server-card-detail-link,
 :root[data-gradient-surfaces="true"][data-card-style="glass"] .strip-card-stat,
 :root[data-gradient-surfaces="true"][data-card-style="glass"] .strip-card-metric-bar,
@@ -3176,6 +3063,8 @@
 }
 
 :root[data-gradient-surfaces="true"][data-card-style="neon"] .metric-detail,
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .traffic-stat-foot,
+:root[data-gradient-surfaces="true"][data-card-style="neon"] .traffic-quota-mode,
 :root[data-gradient-surfaces="true"][data-card-style="neon"] .server-card-detail-link,
 :root[data-gradient-surfaces="true"][data-card-style="neon"] .strip-card-stat,
 :root[data-gradient-surfaces="true"][data-card-style="neon"] .strip-card-metric-bar,
@@ -3195,6 +3084,8 @@
 
 :root[data-gradient-surfaces="true"][data-card-style="crt"] .card-metric-section,
 :root[data-gradient-surfaces="true"][data-card-style="crt"] .metric-detail,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .traffic-stat-foot,
+:root[data-gradient-surfaces="true"][data-card-style="crt"] .traffic-quota-mode,
 :root[data-gradient-surfaces="true"][data-card-style="crt"] .server-card-detail-link,
 :root[data-gradient-surfaces="true"][data-card-style="crt"] .strip-card-stat,
 :root[data-gradient-surfaces="true"][data-card-style="crt"] .strip-card-metric-bar,

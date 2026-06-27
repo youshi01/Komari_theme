@@ -434,7 +434,8 @@ function drawEqualizerStrip(
     const active = pointIsActive(point);
     if (!active && point.hideInactive) return;
     const level = clamp(point.level);
-    const pulse = Math.sin(phase * 4 + index * 0.72) * 0.16;
+    const wave = 0.5 + Math.sin(phase * 4 + index * 0.72) * 0.5;
+    const pulse = (wave - 0.5) * 0.32;
     const activeBlocks = active
       ? Math.max(1, Math.min(stackCount, Math.ceil((level + pulse) * stackCount)))
       : 0;
@@ -447,10 +448,13 @@ function drawEqualizerStrip(
       const fromBottom = stackCount - block;
       const y = height - (block + 1) * blockHeight - block * blockGap;
       const lit = active && fromBottom <= activeBlocks;
-      ctx.globalAlpha = lit ? 0.48 + block * 0.11 : 0.2;
-      ctx.shadowBlur = lit ? glow : 0;
+      const shimmer = variant === "progress" ? wave : 0.45;
+      ctx.globalAlpha = lit ? clamp(0.44 + block * 0.1 + shimmer * 0.16) : 0.2;
+      ctx.shadowBlur = lit ? glow * (0.72 + shimmer * 0.5) : 0;
       ctx.shadowColor = withAlpha(tone, 0.58);
-      ctx.fillStyle = lit ? mixColors(tone, resolved.accent, block * 0.08) : resolved.inactive;
+      ctx.fillStyle = lit
+        ? mixColors(tone, resolved.accent, Math.min(0.42, block * 0.08 + shimmer * 0.12))
+        : resolved.inactive;
       fillRoundedRect(ctx, x, y, itemWidth, blockHeight, radius);
     }
     resetCanvasEffects(ctx);

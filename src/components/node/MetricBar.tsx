@@ -20,32 +20,40 @@ type MetricPaint =
     };
 
 interface MetricBarProps {
+  className?: string;
+  title?: string;
   icon: ReactNode;
   label: string;
   valueText: string;
   unit?: string;
   detailText?: string;
   fraction: number; // 0..1
+  visualFraction?: number; // optional paint-only override
   redrawKey?: string;
   paint: MetricPaint;
   marqueeStyle: MarqueeStyleSettings;
 }
 
 export function MetricBar({
+  className,
+  title,
   icon,
   label,
   valueText,
   unit,
   detailText,
   fraction,
+  visualFraction,
   redrawKey,
   paint,
   marqueeStyle,
 }: MetricBarProps) {
   const clamped = Math.max(0, Math.min(1, fraction));
+  const paintFraction =
+    visualFraction == null ? clamped : Math.max(0, Math.min(1, visualFraction));
   const points = useMemo(
-    () => buildProgressPoints(clamped, marqueeStyle),
-    [clamped, marqueeStyle],
+    () => buildProgressPoints(paintFraction, marqueeStyle),
+    [paintFraction, marqueeStyle],
   );
   const activeColor = paint.kind === "gradient" ? paint.from : paint.color;
   const accentColor =
@@ -69,7 +77,7 @@ export function MetricBar({
   );
 
   return (
-    <div className="metric-item">
+    <div className={className ? `metric-item ${className}` : "metric-item"} title={title}>
       <div className="flex justify-between items-center gap-3 min-w-0">
         <div className="flex items-center gap-1.5 text-[var(--text-secondary)] flex-shrink-0">
           <span>{icon}</span>
