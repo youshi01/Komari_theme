@@ -47,6 +47,7 @@ import {
   useVisualStyle,
 } from "@/hooks/useVisualStyle";
 import { MarqueePreviewStrip } from "@/components/node/MarqueePreviewStrip";
+import { TopInfoSettingsPanel } from "@/components/settings/TopInfoSettingsPanel";
 import {
   HOMEPAGE_NODE_SORT_OPTIONS,
   NODE_SORT_INTERVAL_OPTIONS,
@@ -74,6 +75,7 @@ const VISUAL_STYLE_QUICK_TABS = [
   { id: "dashboard", label: "信息展板" },
   { id: "gradient", label: "渐变背板" },
   { id: "palette", label: "配色" },
+  { id: "topInfo", label: "顶部信息" },
 ] as const;
 type VisualStyleQuickTab = (typeof VISUAL_STYLE_QUICK_TABS)[number]["id"];
 
@@ -998,6 +1000,18 @@ export function FloatingControls() {
                   </div>
                 </div>
               </>
+            )}
+
+            {visualStyleTab === "topInfo" && (
+              <div className="visual-style-section">
+                <div className="visual-style-section-title">顶部信息</div>
+                <TopInfoSettingsPanel
+                  settings={visualStyle.topInfo}
+                  order={visualStyle.topInfoOrder}
+                  columns={visualStyle.topInfoColumns}
+                  onChange={updateVisualStyle}
+                />
+              </div>
             )}
           </div>
         )}

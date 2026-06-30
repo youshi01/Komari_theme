@@ -106,7 +106,11 @@ export function NodeGrid() {
 
   return (
     <div className="flex flex-col gap-4 xl:gap-5">
-      <StatusOverview />
+      <StatusOverview
+        topInfo={visualStyle.topInfo}
+        topInfoOrder={visualStyle.topInfoOrder}
+        topInfoColumns={visualStyle.topInfoColumns}
+      />
       <div
         className={
           isStripLayout

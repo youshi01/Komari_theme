@@ -95,6 +95,7 @@ import {
   type VisualStyleSettings,
 } from "@/hooks/useVisualStyle";
 import { MarqueePreviewStrip } from "@/components/node/MarqueePreviewStrip";
+import { TopInfoSettingsPanel } from "@/components/settings/TopInfoSettingsPanel";
 import {
   normalizeHomepagePingTaskBindings,
   type HomepagePingTaskBindings,
@@ -1222,6 +1223,20 @@ export function ThemeManage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="surface-inset p-4">
+              <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                <Eye size={14} />
+                <span>顶部信息</span>
+              </div>
+              <TopInfoSettingsPanel
+                settings={draftVisualStyle.topInfo}
+                order={draftVisualStyle.topInfoOrder}
+                columns={draftVisualStyle.topInfoColumns}
+                onChange={updateDraftVisualStyle}
+                manage
+              />
             </div>
 
             <div className="surface-inset p-4">

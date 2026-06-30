@@ -61,6 +61,17 @@ export type LiquidShapeId =
   | "crystal"
   | "drop"
   | "ring";
+export type TopInfoItemId =
+  | "time"
+  | "total"
+  | "online"
+  | "regions"
+  | "traffic"
+  | "rate"
+  | "cpu"
+  | "memory"
+  | "disk";
+export type TopInfoColumnCount = 0 | 2 | 3 | 4 | 5 | 6;
 export type VisualStyleSource = "local" | "global" | "default";
 
 export interface VisualMetricColors {
@@ -126,11 +137,16 @@ export interface DashboardSettings {
   liquid: LiquidDashboardSettings;
 }
 
+export type TopInfoSettings = Record<TopInfoItemId, boolean>;
+
 export interface VisualStyleSettings {
   cardStyle: CardStylePresetId;
   cardLayout: CardLayoutId;
   dashboardStyle: DashboardStylePresetId;
   showTrafficQuota: boolean;
+  topInfo: TopInfoSettings;
+  topInfoOrder: TopInfoItemId[];
+  topInfoColumns: TopInfoColumnCount;
   dashboardSettings: DashboardSettings;
   radarLatencyMaxMs: number;
   marqueePalette: MarqueePalettePresetId;
@@ -182,11 +198,114 @@ export interface LiquidShapePreset {
   description: string;
 }
 
+export interface TopInfoOption {
+  id: TopInfoItemId;
+  label: string;
+  description: string;
+}
+
+export interface TopInfoColumnOption {
+  value: TopInfoColumnCount;
+  label: string;
+  description: string;
+}
+
 export interface DashboardTuningControl {
   key: string;
   label: string;
   max?: number;
 }
+
+export const TOP_INFO_ITEM_OPTIONS: TopInfoOption[] = [
+  {
+    id: "time",
+    label: "当前时间",
+    description: "显示页面当前时间。",
+  },
+  {
+    id: "total",
+    label: "节点总数",
+    description: "显示当前可见节点数量。",
+  },
+  {
+    id: "online",
+    label: "当前在线",
+    description: "显示在线节点和总节点。",
+  },
+  {
+    id: "regions",
+    label: "点亮地区",
+    description: "统计在线节点覆盖地区。",
+  },
+  {
+    id: "traffic",
+    label: "总上下行流量",
+    description: "显示累计上传和下载流量。",
+  },
+  {
+    id: "rate",
+    label: "总流量速率",
+    description: "显示当前合计上下行速率。",
+  },
+  {
+    id: "cpu",
+    label: "总 CPU",
+    description: "汇总 CPU 核心并显示平均占用。",
+  },
+  {
+    id: "memory",
+    label: "总内存",
+    description: "汇总内存容量和已用占比。",
+  },
+  {
+    id: "disk",
+    label: "总硬盘",
+    description: "汇总硬盘容量和已用占比。",
+  },
+];
+
+export const DEFAULT_TOP_INFO_SETTINGS: TopInfoSettings =
+  TOP_INFO_ITEM_OPTIONS.reduce((settings, option) => {
+    settings[option.id] = true;
+    return settings;
+  }, {} as TopInfoSettings);
+
+export const DEFAULT_TOP_INFO_ORDER: TopInfoItemId[] = TOP_INFO_ITEM_OPTIONS.map(
+  (option) => option.id,
+);
+
+export const TOP_INFO_COLUMN_OPTIONS: TopInfoColumnOption[] = [
+  {
+    value: 0,
+    label: "自动",
+    description: "按屏幕宽度自动换行。",
+  },
+  {
+    value: 2,
+    label: "2 个",
+    description: "更宽松，适合信息量大。",
+  },
+  {
+    value: 3,
+    label: "3 个",
+    description: "平衡密度和阅读。",
+  },
+  {
+    value: 4,
+    label: "4 个",
+    description: "桌面端更紧凑。",
+  },
+  {
+    value: 5,
+    label: "5 个",
+    description: "适合宽屏展示。",
+  },
+  {
+    value: 6,
+    label: "6 个",
+    description: "保留旧版紧凑总览。",
+  },
+];
 
 export const CARD_STYLE_PRESETS: CardStylePreset[] = [
   {
@@ -757,6 +876,9 @@ export const DEFAULT_VISUAL_STYLE_SETTINGS: VisualStyleSettings = {
   cardLayout: "square",
   dashboardStyle: "bars",
   showTrafficQuota: true,
+  topInfo: DEFAULT_TOP_INFO_SETTINGS,
+  topInfoOrder: DEFAULT_TOP_INFO_ORDER,
+  topInfoColumns: 0,
   dashboardSettings: DEFAULT_DASHBOARD_SETTINGS,
   radarLatencyMaxMs: 1000,
   marqueePalette: "health",
@@ -1027,6 +1149,52 @@ export function patchLiquidDashboardSetting(
   });
 }
 
+function normalizeTopInfoSettings(value: unknown): TopInfoSettings {
+  const record = isSettingsObject(value)
+    ? (value as Partial<Record<TopInfoItemId, unknown>>)
+    : {};
+
+  return TOP_INFO_ITEM_OPTIONS.reduce((settings, option) => {
+    const raw = record[option.id];
+    settings[option.id] =
+      typeof raw === "boolean" ? raw : DEFAULT_TOP_INFO_SETTINGS[option.id];
+    return settings;
+  }, {} as TopInfoSettings);
+}
+
+function isTopInfoItem(value: unknown): value is TopInfoItemId {
+  return (
+    typeof value === "string" &&
+    DEFAULT_TOP_INFO_ORDER.includes(value as TopInfoItemId)
+  );
+}
+
+function normalizeTopInfoOrder(value: unknown): TopInfoItemId[] {
+  const seen = new Set<TopInfoItemId>();
+  const ordered = Array.isArray(value)
+    ? value.filter((item): item is TopInfoItemId => {
+        if (!isTopInfoItem(item) || seen.has(item)) return false;
+        seen.add(item);
+        return true;
+      })
+    : [];
+
+  for (const item of DEFAULT_TOP_INFO_ORDER) {
+    if (seen.has(item)) continue;
+    seen.add(item);
+    ordered.push(item);
+  }
+
+  return ordered;
+}
+
+function normalizeTopInfoColumns(value: unknown): TopInfoColumnCount {
+  const numeric = Number(value);
+  return TOP_INFO_COLUMN_OPTIONS.some((option) => option.value === numeric)
+    ? (numeric as TopInfoColumnCount)
+    : DEFAULT_VISUAL_STYLE_SETTINGS.topInfoColumns;
+}
+
 export function normalizeVisualStyleSettings(value: unknown): VisualStyleSettings {
   if (!isSettingsObject(value)) return DEFAULT_VISUAL_STYLE_SETTINGS;
   const record = value as Record<string, unknown>;
@@ -1055,6 +1223,9 @@ export function normalizeVisualStyleSettings(value: unknown): VisualStyleSetting
       typeof record.showTrafficQuota === "boolean"
         ? record.showTrafficQuota
         : DEFAULT_VISUAL_STYLE_SETTINGS.showTrafficQuota,
+    topInfo: normalizeTopInfoSettings(record.topInfo),
+    topInfoOrder: normalizeTopInfoOrder(record.topInfoOrder),
+    topInfoColumns: normalizeTopInfoColumns(record.topInfoColumns),
     dashboardSettings: normalizeDashboardSettings(record.dashboardSettings),
     radarLatencyMaxMs: normalizeRadarLatencyMaxMs(record.radarLatencyMaxMs),
     marqueePalette,
